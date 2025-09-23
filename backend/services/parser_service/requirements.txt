@@ -1,0 +1,38 @@
+# Parsing Service Dependencies
+
+# FastAPI Web Framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# Core LangChain and LangGraph
+langgraph>=0.0.60
+langchain-core>=0.1.45
+langchain-openai>=0.1.7
+langchain-text-splitters>=0.0.1
+
+# PDF Processing
+pymupdf>=1.23.0
+
+# Image Processing
+Pillow>=10.0.0
+
+# File Type Detection
+filetype>=1.2.0
+
+# HTML Parsing for some nodes
+beautifulsoup4
+
+# HTTP Requests for file download
+requests>=2.31.0
+
+# Optional: For graph visualization (if needed during development)
+# ipython
+
+# Development and Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+
+# Type hints support
+typing-extensions>=4.7.0
+pandas>=2.1.0
+beautifulsoup4

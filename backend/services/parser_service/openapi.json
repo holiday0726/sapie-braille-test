@@ -1,0 +1,216 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "문서 파싱 서비스 (Parser Service)",
+    "description": "URL로 제공된 문서를 다운로드하여 텍스트와 구조를 추출하는 툴입니다.",
+    "contact": {
+      "name": "Sapie AI",
+      "email": "contact@sapie.ai"
+    },
+    "version": "2.0.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health Check",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "summary": "Root",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/parse-by-url": {
+      "get": {
+        "summary": "URL로 문서 파싱",
+        "description": "공개된 URL의 문서를 다운로드하여 내용을 파싱하고 구조화된 텍스트를 반환합니다.",
+        "operationId": "parseDocumentByUrl",
+        "parameters": [
+          {
+            "name": "file_url",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "파싱할 파일의 공개적으로 접근 가능한 URL입니다.",
+              "title": "File Url"
+            },
+            "description": "파싱할 파일의 공개적으로 접근 가능한 URL입니다.",
+            "example": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+          },
+          {
+            "name": "provider",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "텍스트 생성을 위해 사용할 LLM 제공자 이름입니다. (예: openai)",
+              "default": "openai",
+              "title": "Provider"
+            },
+            "description": "텍스트 생성을 위해 사용할 LLM 제공자 이름입니다. (예: openai)",
+            "example": "openai"
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "사용할 구체적인 LLM 모델명입니다. (예: gpt-4o)",
+              "default": "gpt-4o",
+              "title": "Model"
+            },
+            "description": "사용할 구체적인 LLM 모델명입니다. (예: gpt-4o)",
+            "example": "gpt-4o"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "성공적으로 파싱됨",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ErrorResponse": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "description": "오류 메시지"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "SuccessResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "description": "성공 여부",
+            "default": true
+          },
+          "result": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Result",
+            "description": "파싱 결과"
+          }
+        },
+        "type": "object",
+        "required": [
+          "result"
+        ],
+        "title": "SuccessResponse"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "로컬 개발 서버"
+    }
+  ]
+}

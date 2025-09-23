@@ -1,0 +1,40 @@
+# Environment files
+.env
+.env.local
+.env.*.local
+backend/.env.*
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+output/
+temp/
+*.tmp 
+
+#Project output
+temp_extract/
+temp_output/
+data/
+temp_files/

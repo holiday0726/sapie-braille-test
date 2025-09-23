@@ -1,0 +1,66 @@
+
+services:
+  # API Gateway - 포트 8000
+  main-service:
+    build:
+      context: ./backend/services/api_gateway
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - parser-service
+    env_file:
+      - backend/.env.main
+    environment:
+      - PARSER_SERVICE_URL=http://parser-service:8001
+    volumes:
+      - ./shared_data:/app/shared_data
+    networks:
+      - sapie-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Parser Service - 포트 8001  
+  parser-service:
+    build:
+      context: ./backend/services/parser_service
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    env_file:
+      - backend/.env.parser
+    volumes:
+      - ./backend/services/parser_service/temp_files:/app/temp_files
+    networks:
+      - sapie-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend (Next.js) - 포트 3000
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - NEXT_PUBLIC_API_URL=http://localhost:8000
+  #   depends_on:
+  #     - main-service
+  #   networks:
+  #     - sapie-network
+
+networks:
+  sapie-network:
+    driver: bridge
+
+volumes:
+  shared_data:
+  temp_files:
+  audio_output:

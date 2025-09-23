@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(git checkout:*)",
+      "Bash(rm:*)",
+      "Bash(cd:*)",
+      "Bash(python test_whisper_integration.py)",
+      "Bash(python test_whisper_simple.py:*)",
+      "Bash(python test_whisper_direct.py:*)",
+      "Bash(del:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run lint)",
+      "Bash(npm run build:*)",
+      "Bash(cat:*)",
+      "Bash(pip install:*)",
+      "Bash(python:*)",
+      "Bash(curl:*)",
+      "Bash(taskkill:*)",
+      "Read(/C:\\workspace\\sapie-braille\\frontend\\src\\app/**)",
+      "Read(/C:\\workspace\\sapie-braille\\frontend\\src\\components/**)",
+      "Read(/C:\\workspace\\sapie-braille\\frontend\\src\\components/**)",
+      "Read(/C:\\workspace\\sapie-braille\\frontend\\src\\app/**)",
+      "Read(/C:\\workspace\\sapie-braille\\frontend\\src\\components/**)",
+      "Read(/C:\\workspace\\sapie-braille\\frontend\\src\\components/**)",
+      "Read(/C:\\workspace\\sapie-braille\\frontend\\src\\components/**)",
+      "Read(/C:\\workspace\\sapie-braille\\frontend\\src\\components/**)",
+      "Read(/C:\\workspace\\sapie-braille\\frontend\\src\\app/**)",
+      "Read(/C:\\workspace\\sapie-braille\\frontend\\src\\utils/**)",
+      "Read(/C:\\workspace\\sapie-braille\\backend/**)",
+      "Read(/C:\\workspace\\sapie-braille\\backend\\services\\api_gateway/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2024-09-04T00:00:00.000Z" agent="5.0" etag="" version="24.6.4" type="device">
+  <diagram name="SAPIE-Braille-Architecture" id="sapie-braille-architecture">
+    <mxGraphModel dx="2074" dy="1106" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" background="#ffffff" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Title -->
+        <mxCell id="title" value="SAPIE Braille 시스템 아키텍처" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=28;fontStyle=1;fontColor=#1f2937;" vertex="1" parent="1">
+          <mxGeometry x="650" y="40" width="400" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Frontend Layer -->
+        <mxCell id="frontend-layer" value="프레젠테이션 계층" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#3b82f6;strokeWidth=2;fontSize=16;fontStyle=1;fontColor=#1e40af;" vertex="1" parent="1">
+          <mxGeometry x="100" y="120" width="1400" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Frontend Service -->
+        <mxCell id="frontend" value="Frontend Service&#xa;Next.js 14 + TypeScript&#xa;Port: 3000/3001&#xa;- 에이전트 선택 (점역변환, 뉴스, 복지, 날씨)&#xa;- 음성 인터페이스 (스페이스바)&#xa;- 접근성 UI (WCAG 2.1 AA)&#xa;- 실시간 채팅" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e0f2fe;strokeColor=#0277bd;strokeWidth=2;fontSize=12;align=left;spacingLeft=10;fontColor=#01579b;" vertex="1" parent="1">
+          <mxGeometry x="200" y="200" width="300" height="120" as="geometry" />
+        </mxCell>
+
+        <!-- User -->
+        <mxCell id="user" value="👤 시각장애인&#xa;사용자" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#ff9800;strokeWidth=2;fontSize=14;fontStyle=1;fontColor=#e65100;" vertex="1" parent="1">
+          <mxGeometry x="650" y="200" width="120" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Browser -->
+        <mxCell id="browser" value="🌐 웹 브라우저&#xa;- 스크린리더 지원&#xa;- 키보드 내비게이션&#xa;- 음성 인터페이스" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#9c27b0;strokeWidth=2;fontSize=12;fontColor=#4a148c;" vertex="1" parent="1">
+          <mxGeometry x="850" y="200" width="200" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- API Gateway Layer -->
+        <mxCell id="gateway-layer" value="API 게이트웨이 계층" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#f59e0b;strokeWidth=2;fontSize=16;fontStyle=1;fontColor=#92400e;" vertex="1" parent="1">
+          <mxGeometry x="100" y="380" width="1400" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- API Gateway -->
+        <mxCell id="api-gateway" value="API Gateway&#xa;FastAPI + Pure L7 Routing&#xa;Port: 8080&#xa;- JWT 인증&#xa;- Dify 프록시&#xa;- 점자 변환 (Agent ID 1)&#xa;- 서비스 라우팅&#xa;- 헬스체크" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f59e0b;strokeWidth=2;fontSize=12;align=left;spacingLeft=10;fontColor=#92400e;" vertex="1" parent="1">
+          <mxGeometry x="550" y="460" width="280" height="120" as="geometry" />
+        </mxCell>
+
+        <!-- External Services Layer -->
+        <mxCell id="external-layer" value="외부 서비스 계층" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e8ff;strokeColor=#8b5cf6;strokeWidth=2;fontSize=16;fontStyle=1;fontColor=#5b21b6;" vertex="1" parent="1">
+          <mxGeometry x="100" y="620" width="1400" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Dify Platform -->
+        <mxCell id="dify" value="🤖 Dify Platform&#xa;agent.sapie.ai&#xa;- 대화형 AI&#xa;- 스트리밍 응답&#xa;- 다중 에이전트" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ede9fe;strokeColor=#8b5cf6;strokeWidth=2;fontSize=12;fontColor=#5b21b6;" vertex="1" parent="1">
+          <mxGeometry x="200" y="700" width="150" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- OpenAI -->
+        <mxCell id="openai" value="🧠 OpenAI&#xa;- Whisper (STT)&#xa;- TTS&#xa;- GPT Models" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ede9fe;strokeColor=#8b5cf6;strokeWidth=2;fontSize=12;fontColor=#5b21b6;" vertex="1" parent="1">
+          <mxGeometry x="400" y="700" width="120" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- AWS S3 -->
+        <mxCell id="s3" value="☁️ AWS S3&#xa;- 파일 저장&#xa;- Presigned URLs&#xa;- 오디오 파일" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ede9fe;strokeColor=#8b5cf6;strokeWidth=2;fontSize=12;fontColor=#5b21b6;" vertex="1" parent="1">
+          <mxGeometry x="570" y="700" width="120" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- MongoDB -->
+        <mxCell id="mongodb" value="🗄️ MongoDB&#xa;- 파일 메타데이터&#xa;- 사용자 데이터&#xa;- 세션 관리" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ede9fe;strokeColor=#8b5cf6;strokeWidth=2;fontSize=12;fontColor=#5b21b6;" vertex="1" parent="1">
+          <mxGeometry x="740" y="700" width="120" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- Microservices Layer -->
+        <mxCell id="services-layer" value="마이크로서비스 계층" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=2;fontSize=16;fontStyle=1;fontColor=#166534;" vertex="1" parent="1">
+          <mxGeometry x="100" y="860" width="1400" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Asset Service -->
+        <mxCell id="asset-service" value="Asset Service&#xa;Port: 8004&#xa;- 파일 메타데이터&#xa;- Presigned URLs&#xa;- 업로드 관리&#xa;- MongoDB 연동" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=2;fontSize=12;align=left;spacingLeft=10;fontColor=#166534;" vertex="1" parent="1">
+          <mxGeometry x="150" y="940" width="180" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- Parser Service -->
+        <mxCell id="parser-service" value="Parser Service&#xa;Port: 8000&#xa;- 문서 파싱&#xa;- LangGraph 워크플로&#xa;- 멀티모달 분석&#xa;- 구조화된 출력" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=2;fontSize=12;align=left;spacingLeft=10;fontColor=#166534;" vertex="1" parent="1">
+          <mxGeometry x="370" y="940" width="180" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- STT Service -->
+        <mxCell id="stt-service" value="STT Service&#xa;Port: 8001&#xa;- 음성 인식&#xa;- OpenAI Whisper&#xa;- 다국어 지원&#xa;- 실시간 처리" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=2;fontSize=12;align=left;spacingLeft=10;fontColor=#166534;" vertex="1" parent="1">
+          <mxGeometry x="590" y="940" width="180" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- TTS Service -->
+        <mxCell id="tts-service" value="TTS Service&#xa;Port: 8003&#xa;- 음성 합성&#xa;- OpenAI TTS&#xa;- 다양한 음성&#xa;- S3 저장" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=2;fontSize=12;align=left;spacingLeft=10;fontColor=#166534;" vertex="1" parent="1">
+          <mxGeometry x="810" y="940" width="180" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- Braille Converter -->
+        <mxCell id="braille-converter" value="⠃ 점자 변환기&#xa;KorToBraille&#xa;- 한글 → 점자&#xa;- BRF 형식&#xa;- 실시간 변환" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef0ff;strokeColor=#d946ef;strokeWidth=2;fontSize=12;fontColor=#a21caf;" vertex="1" parent="1">
+          <mxGeometry x="1030" y="940" width="150" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- Shared Infrastructure -->
+        <mxCell id="shared-infra" value="공통 인프라 계층" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fee2e2;strokeColor=#ef4444;strokeWidth=2;fontSize=16;fontStyle=1;fontColor=#dc2626;" vertex="1" parent="1">
+          <mxGeometry x="100" y="1080" width="1400" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Docker -->
+        <mxCell id="docker" value="🐳 Docker&#xa;- 컨테이너화&#xa;- Docker Compose&#xa;- 서비스 관리" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fee2e2;strokeColor=#ef4444;strokeWidth=2;fontSize=12;fontColor=#dc2626;" vertex="1" parent="1">
+          <mxGeometry x="200" y="1160" width="150" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Monorepo -->
+        <mxCell id="monorepo" value="📁 Monorepo&#xa;- 4-Layer Architecture&#xa;- api/ core/ infra/ services/&#xa;- 공통 모듈 공유" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fee2e2;strokeColor=#ef4444;strokeWidth=2;fontSize=12;fontColor=#dc2626;" vertex="1" parent="1">
+          <mxGeometry x="400" y="1160" width="200" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Monitoring -->
+        <mxCell id="monitoring" value="📊 모니터링&#xa;- 헬스체크&#xa;- 구조화된 로깅&#xa;- 오류 추적" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fee2e2;strokeColor=#ef4444;strokeWidth=2;fontSize=12;fontColor=#dc2626;" vertex="1" parent="1">
+          <mxGeometry x="650" y="1160" width="150" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Connections -->
+        
+        <!-- User to Frontend -->
+        <mxCell id="edge1" edge="1" parent="1" source="user" target="frontend">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="710" y="320" />
+              <mxPoint x="350" y="320" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- User to Browser -->
+        <mxCell id="edge2" edge="1" parent="1" source="user" target="browser">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Frontend to API Gateway -->
+        <mxCell id="edge3" edge="1" parent="1" source="frontend" target="api-gateway">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="350" y="350" />
+              <mxPoint x="690" y="350" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Browser to API Gateway -->
+        <mxCell id="edge4" edge="1" parent="1" source="browser" target="api-gateway">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="950" y="350" />
+              <mxPoint x="690" y="350" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- API Gateway to External Services -->
+        <mxCell id="edge5" edge="1" parent="1" source="api-gateway" target="dify">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="600" y="650" />
+              <mxPoint x="275" y="650" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="edge6" edge="1" parent="1" source="api-gateway" target="openai">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="630" y="650" />
+              <mxPoint x="460" y="650" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="edge7" edge="1" parent="1" source="api-gateway" target="s3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- API Gateway to Microservices -->
+        <mxCell id="edge8" edge="1" parent="1" source="api-gateway" target="asset-service">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="600" y="870" />
+              <mxPoint x="240" y="870" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="edge9" edge="1" parent="1" source="api-gateway" target="parser-service">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="630" y="870" />
+              <mxPoint x="460" y="870" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="edge10" edge="1" parent="1" source="api-gateway" target="stt-service">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="680" y="870" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="edge11" edge="1" parent="1" source="api-gateway" target="tts-service">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="750" y="870" />
+              <mxPoint x="900" y="870" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="edge12" edge="1" parent="1" source="api-gateway" target="braille-converter">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="780" y="870" />
+              <mxPoint x="1105" y="870" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Services to External -->
+        <mxCell id="edge13" edge="1" parent="1" source="asset-service" target="mongodb">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="240" y="830" />
+              <mxPoint x="800" y="830" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="edge14" edge="1" parent="1" source="asset-service" target="s3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="240" y="830" />
+              <mxPoint x="630" y="830" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="edge15" edge="1" parent="1" source="stt-service" target="openai">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="680" y="830" />
+              <mxPoint x="460" y="830" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="edge16" edge="1" parent="1" source="tts-service" target="openai">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="900" y="830" />
+              <mxPoint x="460" y="830" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="edge17" edge="1" parent="1" source="tts-service" target="s3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="900" y="830" />
+              <mxPoint x="630" y="830" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Legend -->
+        <mxCell id="legend" value="범례" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;strokeWidth=2;fontSize=16;fontStyle=1;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="1250" y="700" width="200" height="300" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-frontend" value="🌐 프레젠테이션 계층" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontColor=#0277bd;" vertex="1" parent="1">
+          <mxGeometry x="1260" y="730" width="180" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-gateway" value="🚪 API 게이트웨이" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontColor=#f59e0b;" vertex="1" parent="1">
+          <mxGeometry x="1260" y="760" width="180" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-external" value="☁️ 외부 서비스" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontColor=#8b5cf6;" vertex="1" parent="1">
+          <mxGeometry x="1260" y="790" width="180" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-services" value="🔧 마이크로서비스" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontColor=#16a34a;" vertex="1" parent="1">
+          <mxGeometry x="1260" y="820" width="180" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-braille" value="⠃ 점자 변환" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontColor=#d946ef;" vertex="1" parent="1">
+          <mxGeometry x="1260" y="850" width="180" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-infra" value="🏗️ 공통 인프라" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontColor=#ef4444;" vertex="1" parent="1">
+          <mxGeometry x="1260" y="880" width="180" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Port Information -->
+        <mxCell id="port-info" value="포트 정보&#xa;Frontend: 3000/3001&#xa;API Gateway: 8080&#xa;Asset Service: 8004&#xa;Parser Service: 8000&#xa;STT Service: 8001&#xa;TTS Service: 8003" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f1f5f9;strokeColor=#64748b;strokeWidth=1;fontSize=11;align=left;spacingLeft=10;fontColor=#1e293b;" vertex="1" parent="1">
+          <mxGeometry x="1250" y="520" width="200" height="140" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
