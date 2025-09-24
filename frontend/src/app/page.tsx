@@ -397,8 +397,8 @@ export default function Home() {
         Sapie-Braille
       </button>
 
-      로그아웃 버튼
-      <button
+      {/* 로그아웃 버튼 */}
+      {/* <button
         onClick={handleLogout}
         className={`fixed top-6 right-6 z-50 text-sm px-4 py-2 bg-white hover:bg-gray-100 text-gray-700 hover:text-black border border-gray-300 rounded-lg transition-all duration-200`}
         role="button"
@@ -406,7 +406,7 @@ export default function Home() {
         tabIndex={0}
       >
         {username} 로그아웃
-      </button>
+      </button> */}
 
       {/* 메인 컨테이너 */}
       <div className={`flex-1 flex flex-col transition-all duration-300 ease-in-out md:pl-[56px] ${
