@@ -347,7 +347,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
               const { node, ...restProps } = props as any;
               return (
                 <motion.div
-                  className="table-wrapper overflow-x-auto my-6 rounded-xl shadow-2xl bg-gradient-to-br from-dark-800/90 to-dark-900/90 border border-gray-700/50"
+                  className="table-wrapper overflow-x-auto my-6 rounded-xl shadow-2xl bg-gradient-to-br from-white/95 to-gray-50/95 border border-gray-200"
                   variants={shouldAnimate ? itemVariants : undefined}
                   whileHover={shouldAnimate ? { scale: 1.01 } : undefined}
                   initial={shouldAnimate ? { opacity: 0, y: 20 } : undefined}
@@ -367,7 +367,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
               const { node, ...restProps } = props as any;
               return (
                 <thead
-                  className="bg-gradient-to-r from-dark-700/80 to-dark-800/80"
+                  className="bg-gradient-to-r from-gray-100/90 to-gray-200/90"
                   {...restProps}
                 >
                   {children}
@@ -387,7 +387,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
               return (
                 <motion.tr
                   className="transition-all duration-200"
-                  whileHover={shouldAnimate ? { backgroundColor: 'rgba(31, 41, 55, 0.7)' } : undefined}
+                  whileHover={shouldAnimate ? { backgroundColor: 'rgba(243, 244, 246, 0.8)' } : undefined}
                   {...restProps}
                 >
                   {children}
@@ -398,9 +398,9 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
               const { node, ...restProps } = props as any;
               return (
                 <motion.th
-                  className="px-6 py-4 text-left font-semibold border-b-2 text-gray-100 border-gray-600 bg-dark-850/80"
+                  className="px-6 py-4 text-left font-semibold border-b-2 text-gray-800 border-gray-300 bg-gray-50/80"
                   whileHover={shouldAnimate ? {
-                    backgroundColor: '#2f2f30',
+                    backgroundColor: '#f9fafb',
                     scale: 1.01
                   } : undefined}
                   transition={shouldAnimate ? { duration: 0.2 } : undefined}
@@ -414,9 +414,9 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
               const { node, ...restProps } = props as any;
               return (
                 <motion.td
-                  className="px-6 py-4 border-b last:border-b-0 text-gray-300 border-gray-700 bg-dark-800/30"
+                  className="px-6 py-4 border-b last:border-b-0 text-gray-700 border-gray-200 bg-white/30"
                   whileHover={shouldAnimate ? {
-                    backgroundColor: '#2f2f30',
+                    backgroundColor: '#f3f4f6',
                     scale: 1.005,
                     y: -1
                   } : undefined}

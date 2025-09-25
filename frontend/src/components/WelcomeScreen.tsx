@@ -42,7 +42,7 @@ export const WelcomeScreen = ({
     <div id="welcome-main" className="welcome-screen" role="main" aria-label="시각장애인을 위한 AI 어시스턴트 홈">
       <p className="welcome-title text-5xl font-bold mb-10" role="heading" aria-level={1}>
         {/* 안녕하세요, {username || 'Hyeonchan'} */}
-        안녕하세요, {'sapie'}
+        안녕하세요, {'Sapie'}
       </p>
       <p className="welcome-subtitle text-2xl" role="text">
         시각장애인을 위한 Sapie-Braille입니다. <br />음성으로 말씀하시거나 텍스트로 입력하세요.

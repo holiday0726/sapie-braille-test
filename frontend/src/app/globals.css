@@ -584,9 +584,11 @@ kbd {
     /* red-700 */
   }
 
-  /* Enhanced Table Design */
+  /* Enhanced Table Design - Light Theme */
   .table-wrapper {
     @apply rounded-xl overflow-hidden shadow-2xl my-6 relative border;
+    background: rgba(254, 254, 254, 0.95);
+    border-color: #e0e0e0;
     backdrop-filter: blur(10px);
   }
 
@@ -598,7 +600,9 @@ kbd {
 
   .table-wrapper thead th {
     @apply font-bold relative px-6 py-4 text-left;
-    border-bottom: 2px solid rgba(107, 114, 128, 0.4);
+    background: rgba(248, 248, 248, 0.9);
+    color: #252528;
+    border-bottom: 2px solid rgba(224, 224, 224, 0.8);
     position: sticky;
     top: 0;
     z-index: 10;
@@ -606,45 +610,28 @@ kbd {
 
   .table-wrapper tbody td {
     @apply border-b relative px-6 py-4;
+    color: #252528;
+    border-bottom: 1px solid #e0e0e0;
     transition: all 0.2s ease;
   }
 
   .table-wrapper tbody tr:hover {
     transform: translateY(-1px);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    background-color: rgba(243, 244, 246, 0.8) !important;
   }
 
   .table-wrapper tbody tr:last-child td {
     @apply border-b-0;
   }
 
-  /* Improved alternating row colors */
+  /* Improved alternating row colors for light theme */
   .table-wrapper tbody tr:nth-child(even) {
-    background-color: rgba(47, 47, 48, 0.3);
+    background-color: rgba(249, 250, 251, 0.5);
   }
 
   .table-wrapper tbody tr:nth-child(odd) {
     background-color: transparent;
-  }
-
-  .table-wrapper tbody tr:hover {
-    background-color: rgba(230, 230, 230, 0.5) !important;
-  }
-
-  /* Dark theme table */
-  .table-wrapper {
-    background: rgba(254, 254, 254, 0.9);
-    border-color: #e0e0e0;
-  }
-
-  .table-wrapper thead th {
-    background: rgba(248, 248, 248, 0.8);
-    color: #252528;
-  }
-
-  .table-wrapper tbody td {
-    color: #252528;
-    border-bottom: 1px solid #e0e0e0;
   }
 
   /* Enhanced Math Equations */
