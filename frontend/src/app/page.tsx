@@ -173,10 +173,18 @@ export default function Home() {
       return
     }
 
+    // 웰컴 화면에서 시작하는 경우 명시적으로 새 세션 처리
+    const wasWelcomeScreen = !hasStartedChat || !currentSessionId
+    if (wasWelcomeScreen) {
+      console.log('웰컴 화면에서 음성 입력 - 새 세션 시작')
+    }
+
     // 음성 텍스트로 바로 메시지 전송
     const result = await chatHandleSubmit({ text, isVoice: true })
+
+    // handleSubmit에서 currentSessionId가 설정되므로 직접 사용
     if (result && currentSessionId) {
-      const isNewSession = !chatSessions.find(s => s.id === currentSessionId)
+      const isNewSession = wasWelcomeScreen || !chatSessions.find(s => s.id === currentSessionId)
       if (isNewSession) {
         addNewSession(currentSessionId, result.userMessage)
       }
@@ -293,13 +301,19 @@ export default function Home() {
   // 메시지 전송 처리
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     // 문서 변환 에이전트(ID: 5)일 때는 파일만 있으면 됨
     const isDocumentConversionAgent = selectedAgentId === 5
     if (isDocumentConversionAgent) {
       if (!selectedFile) return // 문서 변환은 파일 필수
     } else {
       if (!inputText.trim() && !selectedFile) return // 일반 모드는 텍스트 또는 파일 필요
+    }
+
+    // 웰컴 화면에서 시작하는 경우 체크
+    const wasWelcomeScreen = !hasStartedChat || !currentSessionId
+    if (wasWelcomeScreen) {
+      console.log('웰컴 화면에서 텍스트 입력 - 새 세션 시작')
     }
 
     let difyFiles: any[] = []
@@ -311,14 +325,14 @@ export default function Home() {
 
     const result = await chatHandleSubmit({ difyFiles, text: inputText })
     if (result && currentSessionId) {
-      // 새 세션인지 확인 (기존 대화목록에 없는 경우)
-      const isNewSession = !chatSessions.find(s => s.id === currentSessionId)
-      
+      // 새 세션인지 확인 (웰컴 화면이었거나 기존 대화목록에 없는 경우)
+      const isNewSession = wasWelcomeScreen || !chatSessions.find(s => s.id === currentSessionId)
+
       if (isNewSession) {
         // 새 세션이면 즉시 대화목록에 추가
         addNewSession(currentSessionId, result.userMessage)
       }
-      
+
       // 세션 저장
       const finalMessages = [...messages, result.userMessage, result.assistantMessage]
       await saveOrUpdateSession(currentSessionId, finalMessages)
@@ -340,9 +354,14 @@ export default function Home() {
 
   // 새 대화 시작 처리
   const handleStartNewChat = () => {
+    // 세션 완전 초기화
+    setCurrentSessionId(null)
     startNewChat()
     resetChat()
+    setMessages([])
+    setHasStartedChat(false)
     setIsSidebarOpen(false)
+    console.log('새 대화 시작 - 세션 완전 초기화')
   }
 
   // 세션 삭제 처리

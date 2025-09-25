@@ -36,10 +36,19 @@ export const useChat = ({ currentSessionId, setCurrentSessionId, loadChatSession
     if (!hasStartedChat) setHasStartedChat(true);
     setIsProcessing(true);
 
+    // 웰컴 화면에서 시작하거나 현재 세션이 없으면 항상 새 세션 생성
     let sessionId = currentSessionId;
+
+    // 명시적으로 웰컴 화면에서 시작하는 경우 새 세션 강제 생성
     if (!currentSessionId) {
       sessionId = generateUUID();
       setCurrentSessionId(sessionId);
+      console.log(`새 세션 생성 (세션 없음): ${sessionId}`);
+    } else if (!hasStartedChat && currentSessionId) {
+      // 웰컴 화면인데 이전 세션 ID가 남아있는 경우 - 새 세션으로 교체
+      sessionId = generateUUID();
+      setCurrentSessionId(sessionId);
+      console.log(`새 세션 생성 (웰컴 화면에서 시작): ${sessionId}, 이전 세션: ${currentSessionId}`);
     }
 
     const content = textToSubmit.trim();
