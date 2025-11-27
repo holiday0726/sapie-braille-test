@@ -135,7 +135,7 @@
 //     </div>
 //   );
 // };  
-import React, { useEffect } from 'react';
+import React from 'react';
 import { AgentType } from '@/hooks/useAgentSelection';
 
 interface WelcomeScreenProps {
@@ -157,17 +157,8 @@ export const WelcomeScreen = ({
 }: WelcomeScreenProps) => {
 
   const handleAgentClick = (agentId: number) => {
-    // 입력 검증
-    if (typeof agentId !== 'number' || agentId < 0) {
-      console.error('Invalid agentId in handleAgentClick:', agentId);
-      return;
-    }
-
-    // 에이전트 존재 여부 확인
-    if (!(agentId in agents)) {
-      console.error('Agent not found:', agentId);
-      return;
-    }
+    if (typeof agentId !== 'number' || agentId < 0) return;
+    if (!(agentId in agents)) return;
 
     try {
       onAgentSelect(agentId);
@@ -177,64 +168,78 @@ export const WelcomeScreen = ({
   };
 
   return (
-    <div id="welcome-main" className="welcome-screen flex flex-col items-center justify-center min-h-[80vh]" role="main" aria-label="시각장애인을 위한 AI 어시스턴트 홈">
+    <div id="welcome-main" className="welcome-screen flex flex-col items-center justify-center min-h-[80vh] bg-[#F8F9FA]" role="main" aria-label="시각장애인을 위한 AI 어시스턴트 홈">
       
       <div className="text-center mb-12">
-        <p className="welcome-title text-5xl font-bold mb-6" role="heading" aria-level={1}>
+        <p className="welcome-title text-5xl font-bold mb-6 text-gray-800" role="heading" aria-level={1}>
           안녕하세요, {'Sapie'}
         </p>
-        <p className="welcome-subtitle text-2xl text-gray-400" role="text">
+        <p className="welcome-subtitle text-2xl text-gray-500" role="text">
           시각장애인을 위한 Sapie-Braille입니다. <br />음성으로 말씀하시거나 텍스트로 입력하세요.
         </p>
       </div>
 
-      {/* 키보드 단축키 안내 (디자인 간소화) */}
-      <div className="mb-12 p-6 bg-dark-800/50 rounded-xl border border-dark-700/50" role="region" aria-labelledby="keyboard-shortcuts">
+      {/* --- [수정 1] 키보드 단축키 안내 (배경 제거, 글자: 볼드+주황색) --- */}
+      <div className="mb-12" role="region" aria-labelledby="keyboard-shortcuts">
         <h2 id="keyboard-shortcuts" className="sr-only">키보드 단축키 안내</h2>
-        <div className="flex gap-8 text-sm text-gray-400" role="list">
-          <div className="flex items-center gap-2" role="listitem">
-            <kbd className="px-2 py-1 bg-dark-700 rounded text-xs font-mono">Space</kbd> + <kbd className="px-2 py-1 bg-dark-700 rounded text-xs font-mono">Space</kbd>
-            <span>녹음 시작/종료</span>
+        
+        <div className="flex gap-10 text-sm" role="list">
+          <div className="flex items-center gap-3" role="listitem">
+            <div className="flex gap-1">
+              <kbd className="px-2.5 py-1.5 bg-gray-100 rounded-md text-xs font-mono border border-gray-300 text-gray-600">Space</kbd> 
+              <span aria-hidden="true">+</span>
+              <kbd className="px-2.5 py-1.5 bg-gray-100 rounded-md text-xs font-mono border border-gray-300 text-gray-600">Space</kbd>
+            </div>
+            {/* ▼ 변경: 볼드체 + 주황색 */}
+            <span className="font-bold text-orange-500 text-base">녹음 시작/종료</span>
           </div>
-          <div className="flex items-center gap-2" role="listitem">
-            <kbd className="px-2 py-1 bg-dark-700 rounded text-xs font-mono">Ctrl</kbd> + <kbd className="px-2 py-1 bg-dark-700 rounded text-xs font-mono">O</kbd>
-            <span>파일 탐색기</span>
+
+          <div className="flex items-center gap-3" role="listitem">
+            <div className="flex gap-1">
+              <kbd className="px-2.5 py-1.5 bg-gray-100 rounded-md text-xs font-mono border border-gray-300 text-gray-600">Ctrl</kbd> 
+              <span aria-hidden="true">+</span>
+              <kbd className="px-2.5 py-1.5 bg-gray-100 rounded-md text-xs font-mono border border-gray-300 text-gray-600">O</kbd>
+            </div>
+            {/* ▼ 변경: 볼드체 + 주황색 */}
+            <span className="font-bold text-orange-500 text-base">파일 탐색기</span>
           </div>
-          <div className="flex items-center gap-2" role="listitem">
-            <kbd className="px-2 py-1 bg-dark-700 rounded text-xs font-mono">Ctrl</kbd> + <kbd className="px-2 py-1 bg-dark-700 rounded text-xs font-mono">R</kbd>
-            <span>음성 재생</span>
+
+          <div className="flex items-center gap-3" role="listitem">
+            <div className="flex gap-1">
+              <kbd className="px-2.5 py-1.5 bg-gray-100 rounded-md text-xs font-mono border border-gray-300 text-gray-600">Ctrl</kbd> 
+              <span aria-hidden="true">+</span>
+              <kbd className="px-2.5 py-1.5 bg-gray-100 rounded-md text-xs font-mono border border-gray-300 text-gray-600">R</kbd>
+            </div>
+            {/* ▼ 변경: 볼드체 + 주황색 */}
+            <span className="font-bold text-orange-500 text-base">음성 재생</span>
           </div>
         </div>
       </div>
+      {/* ----------------------------------------------------- */}
 
-      {/* --- [수정된 부분] 에이전트 카드 리스트 --- */}
-      {/* 기존 quick-actions 클래스 대신 Tailwind Grid 사용 */}
+      {/* --- [수정 2] 에이전트 카드 (크기 확대, 흰색 배경 디자인) --- */}
       <div 
-        className="grid grid-cols-3 gap-6 w-full max-w-5xl px-4" 
+        className="grid grid-cols-3 gap-8 w-full max-w-6xl px-4" 
         role="group" 
         aria-label="AI 어시스턴트 모드 선택" 
-        aria-describedby="quick-actions-help"
       >
-        <div id="quick-actions-help" className="sr-only">
-          다음 AI 어시스턴트 모드 중 하나를 선택하여 대화를 시작할 수 있습니다.
-        </div>
-        
         {Object.values(agents)
           .filter(agent => agent.id !== 0)
           .map((agent) => (
             <button
               key={agent.id}
-              // 높이(h-60), 패딩(p-8), 글자크기(text-xl) 등을 키웠습니다.
               className={`
                 flex flex-col items-center justify-center
-                h-60 p-8 rounded-2xl border transition-all duration-300
-                hover:scale-105 hover:shadow-lg
+                /* ▼ 변경: aspect-square를 넣어 정사각형으로 만듦 */
+                aspect-square w-full p-8 rounded-3xl border-2 transition-all duration-200
+                hover:shadow-xl hover:-translate-y-1
                 ${isAgentSelected && selectedAgentId === agent.id
-                  ? 'bg-primary-500/10 border-primary-500 ring-2 ring-primary-500 text-primary-400' 
-                  : 'bg-dark-800 border-dark-700 text-gray-300 hover:bg-dark-700 hover:border-gray-500'
+                  ? 'bg-orange-50 border-orange-500 ring-4 ring-orange-200 text-orange-700' 
+                  : 'bg-white border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-gray-50'
                 }
               `}
               onClick={() => handleAgentClick(agent.id)}
+              // ... (접근성 및 키보드 이벤트 핸들러는 기존 유지)
               onKeyDown={(e) => {
                 if (e.key === ' ' || e.key === 'Enter') {
                   e.preventDefault(); e.stopPropagation(); handleAgentClick(agent.id);
@@ -246,19 +251,27 @@ export const WelcomeScreen = ({
               aria-pressed={selectedAgentId === agent.id && isAgentSelected}
               tabIndex={0}
             >
-              {/* 아이콘 크기 확대 text-5xl */}
-              <span className="text-5xl mb-6" aria-hidden="true" role="img">{agent.symbol}</span> 
+              {/* ▼ 변경: 아이콘과 제목을 감싸는 가로(row) 컨테이너 추가 */}
+              <div className="flex items-center gap-4 mb-4">
+                {/* 아이콘 */}
+                <span className="text-1xl filter drop-shadow-sm leading-none" aria-hidden="true" role="img">
+                  {agent.symbol}
+                </span>
+                {/* 제목 */}
+                <span className="text-3xl font-bold tracking-tight leading-none">
+                  {agent.name}
+                </span>
+              </div>
               
-              {/* 텍스트 크기 확대 text-xl */}
-              <span className="text-xl font-bold mb-2">{agent.name}</span>
-              
-              {/* 설명 텍스트 추가 (선택 사항) */}
-              <span className="text-sm text-gray-500 line-clamp-2 px-2">{agent.description}</span>
+              {/* 설명 (아래쪽에 배치) */}
+              <span className={`text-lg text-center line-clamp-2 font-medium ${
+                isAgentSelected && selectedAgentId === agent.id ? 'text-orange-600' : 'text-gray-500'
+              }`}>
+                {agent.description}
+              </span>
             </button>
           ))}
       </div>
-      {/* ------------------------------------------- */}
-
     </div>
   );
 };
