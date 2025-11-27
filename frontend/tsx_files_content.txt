@@ -1,0 +1,3995 @@
+﻿==================================================
+FILE PATH: src\app\layout.tsx
+==================================================
+import './globals.css'
+import { Inter } from 'next/font/google'
+
+const inter = Inter({ 
+  subsets: ['latin'],
+  display: 'swap',
+  preload: true,
+  fallback: ['system-ui', 'arial', 'sans-serif']
+})
+
+import type { Metadata, Viewport } from 'next'
+
+export const metadata: Metadata = {
+  title: 'Sapie Braille - 시각장애인을 위한 AI 어시스턴트',
+  description: '시각장애인 지원 텍스트 및 문서 처리 후 음성 변환 시스템. 스크린 리더 지원, 음성 인식, 키보드 내비게이션 지원',
+  keywords: '시각장애인, 접근성, 음성변환, 스크린리더, 텍스트투스피치, 웹접근성, ARIA, WCAG',
+  robots: 'index, follow',
+  authors: [{ name: 'Sapie Braille Team' }],
+  category: 'accessibility',
+  other: {
+    'msapplication-TileColor': '#3b82f6',
+    'msapplication-config': '/browserconfig.xml'
+  }
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: '#3b82f6',
+  colorScheme: 'dark',
+}
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <html lang="ko" dir="ltr">
+      <head>
+        <meta name="format-detection" content="telephone=no" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+      </head>
+      <body className={inter.className}>
+        {/* 스킵 링크 - 키보드 사용자가 주요 콘텐츠로 바로 이동할 수 있음 */}
+        {/* <a 
+          href="#main-content" 
+          className="skip-link"
+          tabIndex={0}
+        >
+          주요 콘텐츠로 바로가기
+        </a>
+        <a 
+          href="#chat-input" 
+          className="skip-link"
+          tabIndex={0}
+        >
+          메시지 입력창으로 바로가기
+        </a> */}
+        
+        {/* 스크린 리더를 위한 랜드마크 안내 - 로그인 페이지와의 중복을 막기 위해 주석 처리 */}
+        {/* <div className="sr-only" role="banner">
+          Sapie Braille 시각장애인을 위한 AI 어시스턴트에 오신 것을 환영합니다. 
+        </div> */}
+        
+        <main id="main-content" role="main">
+          {children}
+        </main>
+        
+        {/* 라이브 영역 - 동적 콘텐츠 변화를 스크린 리더에 알림 */}
+        <div 
+          id="live-announcements" 
+          aria-live="polite" 
+          aria-atomic="true" 
+          className="sr-only"
+        ></div>
+        <div 
+          id="live-announcements-assertive" 
+          aria-live="assertive" 
+          aria-atomic="true" 
+          className="sr-only"
+        ></div>
+      </body>
+    </html>
+  )
+}
+
+
+==================================================
+FILE PATH: src\app\page.tsx
+==================================================
+'use client'
+
+import React, { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
+import { useRouter } from 'next/navigation'
+import Sidebar from '@/components/Sidebar'
+import { useSpacebarRecording } from '@/hooks/useSpacebarRecording'
+import { SpacebarIndicator } from '@/components/SpacebarIndicator'
+import { ChatInput, ChatInputHandles } from '@/components/ChatInput'
+import { useChat } from '@/hooks/useChat'
+import { useChatSessions } from '@/hooks/useChatSessions'
+import { useVoiceRecording } from '@/hooks/useVoiceRecording'
+import { useFileUpload } from '@/hooks/useFileUpload'
+import { useAgentSelection } from '@/hooks/useAgentSelection'
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
+import { getApiUrl } from '@/utils/env'
+import { focusElement, announceToScreenReader } from '@/utils/accessibilityUtils'
+
+const WelcomeScreen = dynamic(() => import('@/components/WelcomeScreen').then(mod => mod.WelcomeScreen), { 
+  ssr: false,
+  loading: () => (
+    <div className="welcome-screen" role="main" aria-label="시각장애인을 위한 AI 어시스턴트 홈">
+      <div className="welcome-title-skeleton bg-dark-800 animate-pulse rounded-lg h-24 w-3/4 mx-auto mb-10" role="presentation"></div>
+      <div className="welcome-subtitle-skeleton bg-dark-700 animate-pulse rounded h-8 w-2/3 mx-auto mb-6" role="presentation"></div>
+      <div className="quick-actions" role="group" aria-label="AI 어시스턴트 모드 선택">
+        <div className="bg-dark-800 animate-pulse rounded-2xl h-12 w-32 mx-2" role="presentation"></div>
+        <div className="bg-dark-800 animate-pulse rounded-2xl h-12 w-32 mx-2" role="presentation"></div>
+        <div className="bg-dark-800 animate-pulse rounded-2xl h-12 w-32 mx-2" role="presentation"></div>
+      </div>
+    </div>
+  )
+})
+const ChatMessages = dynamic(() => import('@/components/ChatMessages').then(mod => mod.ChatMessages), { ssr: false })
+
+
+export default function Home() {
+  const router = useRouter()
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [username, setUsername] = useState('')
+  const [isReady, setIsReady] = useState(false)
+  const chatInputRef = React.useRef<ChatInputHandles>(null)
+
+  // 로그인 상태 확인 및 토큰 검증 (병렬 처리 최적화)
+  useEffect(() => {
+    const checkAuthStatus = async () => {
+      const token = localStorage.getItem('accessToken')
+      const storedUsername = localStorage.getItem('username') || ''
+      
+      if (!token) {
+        router.push('/login')
+        return
+      }
+
+      // UI 렌더링을 위해 즉시 준비 상태로 설정
+      setIsReady(true)
+      setIsLoggedIn(true)
+      setUsername(storedUsername)
+      
+      // 백그라운드에서 토큰 검증 (비동기)
+      try {
+        const apiUrl = getApiUrl()
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 3000) // 3초 타임아웃
+        
+        const response = await fetch(`${apiUrl}/auth/verify`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          signal: controller.signal
+        })
+        
+        clearTimeout(timeoutId)
+
+        if (response.ok) {
+          const data = await response.json()
+          setUsername(data.username || storedUsername)
+        } else {
+          // 토큰이 유효하지 않음 - 로그아웃 처리
+          localStorage.removeItem('accessToken')
+          localStorage.removeItem('isLoggedIn')
+          localStorage.removeItem('username')
+          router.push('/login')
+          return
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name !== 'AbortError') {
+          console.error('Auth check failed:', error)
+        }
+        // 네트워크 오류시에도 로컬 데이터로 계속 진행
+        // (오프라인 상황에서도 앱 사용 가능)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    checkAuthStatus()
+  }, [router])
+
+  // 로그아웃 핸들러
+  const handleLogout = () => {
+    localStorage.removeItem('isLoggedIn')
+    localStorage.removeItem('username')
+    localStorage.removeItem('accessToken')
+    
+    // 라이브 영역에 로그아웃 안내
+    const announceElement = document.getElementById('live-announcements')
+    if (announceElement) {
+      announceElement.textContent = '로그아웃되었습니다. 로그인 페이지로 이동합니다.'
+    }
+    
+    router.push('/login')
+  }
+
+  // 사이드바 관련 상태
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [isSidebarHovered, setIsSidebarHovered] = useState(false)
+
+  // 채팅 세션 관리
+  const {
+    chatSessions,
+    currentSessionId,
+    setCurrentSessionId,
+    selectChatSession,
+    handleDeleteSession,
+    saveOrUpdateSession,
+    addNewSession,
+    startNewChat,
+    loadChatSessionsFromServer
+  } = useChatSessions()
+
+  // Agent 선택 관리
+  const {
+    selectedAgentId,
+    isAgentSelected,
+    selectedAgent,
+    selectAgent,
+    clearSelection,
+    isAgentSelectedById,
+    agents
+  } = useAgentSelection()
+
+  // 채팅 메시지 관리
+  const {
+    messages,
+    setMessages,
+    inputText,
+    setInputText,
+    isProcessing,
+    isStreaming,
+    hasStartedChat,
+    setHasStartedChat,
+    messagesEndRef,
+    handleSubmit: chatHandleSubmit,
+    resetChat
+  } = useChat({ currentSessionId, setCurrentSessionId, loadChatSessionsFromServer, selectedAgentId })
+
+  // 파일 업로드 관리
+  const {
+    selectedFile,
+    fileInputRef,
+    handleFileChange,
+    handleRemoveFile,
+    processSelectedFile
+  } = useFileUpload()
+
+  // 음성 입력 자동 전송 처리
+  const handleVoiceSubmit = async (text: string) => {
+    if (!text.trim()) {
+      const message = "인식된 음성이 없습니다. 다시 시도해주세요."
+      alert(message)
+      announceToScreenReader(message, 'assertive')
+      return
+    }
+
+    // 웰컴 화면에서 시작하는 경우 명시적으로 새 세션 처리
+    const wasWelcomeScreen = !hasStartedChat || !currentSessionId
+    if (wasWelcomeScreen) {
+      console.log('웰컴 화면에서 음성 입력 - 새 세션 시작')
+    }
+
+    // 음성 텍스트로 바로 메시지 전송
+    const result = await chatHandleSubmit({ text, isVoice: true })
+
+    // handleSubmit에서 currentSessionId가 설정되므로 직접 사용
+    if (result && currentSessionId) {
+      const isNewSession = wasWelcomeScreen || !chatSessions.find(s => s.id === currentSessionId)
+      if (isNewSession) {
+        addNewSession(currentSessionId, result.userMessage)
+      }
+      const finalMessages = [...messages, result.userMessage, result.assistantMessage]
+      await saveOrUpdateSession(currentSessionId, finalMessages)
+    }
+  }
+
+  // 음성 녹음 관리
+  const {
+    isRecording,
+    micPermissionGranted,
+    startRecording,
+    stopRecording,
+    handleVoiceClick
+  } = useVoiceRecording({
+    onTranscriptionReceived: (text: string) => {
+      handleVoiceSubmit(text)
+    }
+  })
+
+  // 스페이스바 녹음 기능 통합 (기본값: double-tap 모드)
+  const {
+    isHolding,
+    isRecording: isSpacebarRecording,
+    holdProgress,
+    waitingForSecondClick,
+    mode
+  } = useSpacebarRecording({
+    onStartRecording: startRecording,
+    onStopRecording: stopRecording,
+    holdDuration: 2000,
+    mode: 'double-tap', // Phase 1: 기본값을 double-tap으로 설정
+    doubleClickThreshold: 450
+  })
+
+  // 키보드 단축키 기능 (Ctrl+R로 TTS 재생)
+  const {
+    playTextToSpeech,
+    getTextToRead,
+    handleCtrlR
+  } = useKeyboardShortcuts({
+    messages,
+    inputText
+  })
+
+  // 로그인 직후 환영 메시지 안내
+  useEffect(() => {
+    const justLoggedIn = sessionStorage.getItem('justLoggedIn');
+    if (justLoggedIn) {
+      const welcomeMessage = `로그인에 성공했습니다. 안녕하세요 ${username}, 음성으로 말씀하시거나 텍스트로 입력하세요. 
+      스페이스바를 두 번 누르면 음성 녹음이 시작되고 종료됩니다. 
+      컨트롤 더하기 o 를 누르면 파일 탐색기가 실행됩니다. 
+      컨트롤 더하기 r을 누르면 텍스트 음성을 재생합니다.`
+      
+      announceToScreenReader(welcomeMessage, 'assertive', 500);
+      sessionStorage.removeItem('justLoggedIn');
+    }
+  }, [username]); // username이 설정된 후에 실행
+
+  // 접근성: WelcomeScreen이 보일 때 메인 영역에 포커스
+  useEffect(() => {
+    if (!hasStartedChat) {
+      // WelcomeScreen의 role="main" 요소에 id 추가 필요
+      focusElement('welcome-main', 200)
+    }
+    // hasStartedChat이 true가 되면 ChatInput으로 포커스 이동 (ChatInput 내부 로직 활용)
+  }, [hasStartedChat])
+
+  // TTS 캐시 정리 (5분마다)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const { AudioManager } = require('@/utils/audioManager');
+      AudioManager.clearExpiredCache();
+    }, 5 * 60 * 1000); // 5분
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // 성능 측정 (개발환경에서만)
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+      // LCP 측정
+      const lcpObserver = new PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        const lastEntry = entries[entries.length - 1];
+        console.log(`🎯 LCP: ${Math.round(lastEntry.startTime)}ms`);
+        
+        if (lastEntry.startTime < 1500) {
+          console.log('✅ LCP 목표 달성! (<1.5s)');
+        } else {
+          console.log('⚠️ LCP 목표 미달성 (>1.5s)');
+        }
+      });
+      lcpObserver.observe({ entryTypes: ['largest-contentful-paint'] });
+
+      // FCP 측정
+      const fcpObserver = new PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        const fcpEntry = entries.find(entry => entry.name === 'first-contentful-paint');
+        if (fcpEntry) {
+          console.log(`🚀 FCP: ${Math.round(fcpEntry.startTime)}ms`);
+        }
+      });
+      fcpObserver.observe({ entryTypes: ['paint'] });
+
+      return () => {
+        lcpObserver.disconnect();
+        fcpObserver.disconnect();
+      };
+    }
+  }, []);
+
+  // 메시지 전송 처리
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    // 문서 변환 에이전트(ID: 5)일 때는 파일만 있으면 됨
+    const isDocumentConversionAgent = selectedAgentId === 5
+    if (isDocumentConversionAgent) {
+      if (!selectedFile) return // 문서 변환은 파일 필수
+    } else {
+      if (!inputText.trim() && !selectedFile) return // 일반 모드는 텍스트 또는 파일 필요
+    }
+
+    // 웰컴 화면에서 시작하는 경우 체크
+    const wasWelcomeScreen = !hasStartedChat || !currentSessionId
+    if (wasWelcomeScreen) {
+      console.log('웰컴 화면에서 텍스트 입력 - 새 세션 시작')
+    }
+
+    let difyFiles: any[] = []
+    if (selectedFile) {
+      const files = await processSelectedFile()
+      if (!files) return // 파일 업로드 실패 시 중단
+      difyFiles = files
+    }
+
+    const result = await chatHandleSubmit({ difyFiles, text: inputText })
+    if (result && currentSessionId) {
+      // 새 세션인지 확인 (웰컴 화면이었거나 기존 대화목록에 없는 경우)
+      const isNewSession = wasWelcomeScreen || !chatSessions.find(s => s.id === currentSessionId)
+
+      if (isNewSession) {
+        // 새 세션이면 즉시 대화목록에 추가
+        addNewSession(currentSessionId, result.userMessage)
+      }
+
+      // 세션 저장
+      const finalMessages = [...messages, result.userMessage, result.assistantMessage]
+      await saveOrUpdateSession(currentSessionId, finalMessages)
+    }
+
+    // 파일 선택 해제
+    handleRemoveFile()
+  }
+
+  // 세션 선택 처리
+  const handleSelectChatSession = async (sessionId: string) => {
+    const sessionMessages = await selectChatSession(sessionId, messages)
+    if (sessionMessages) {
+      setMessages(sessionMessages)
+      setHasStartedChat(sessionMessages.length > 0)
+      setIsSidebarOpen(false)
+    }
+  }
+
+  // 새 대화 시작 처리
+  const handleStartNewChat = () => {
+    // 세션 완전 초기화
+    setCurrentSessionId(null)
+    startNewChat()
+    resetChat()
+    setMessages([])
+    setHasStartedChat(false)
+    setIsSidebarOpen(false)
+    console.log('새 대화 시작 - 세션 완전 초기화')
+  }
+
+  // 세션 삭제 처리
+  const handleSessionDelete = async (sessionId: string) => {
+    const shouldStartNewChat = await handleDeleteSession(sessionId)
+    if (shouldStartNewChat) {
+      handleStartNewChat()
+    }
+  }
+
+  // 로딩 중이거나 로그인되지 않은 경우
+  if (isLoading || !isReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white-900">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
+          <p className="text-dark-800">{!isReady ? '앱을 준비 중입니다...' : '인증 확인 중...'}</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isLoggedIn) {
+    return null // 리다이렉트 진행 중
+  }
+
+  return (
+    // <div className="flex h-screen" role="application" aria-label="Sapie-Braille 시각장애인 AI 어시스턴트">
+    <div className="flex h-screen" role="application" aria-label=" ">
+      {/* 사이드바 */}
+      <Sidebar
+        isOpen={isSidebarOpen}
+        onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+        chatSessions={chatSessions}
+        currentSessionId={currentSessionId}
+        onSessionSelect={handleSelectChatSession}
+        onNewChat={handleStartNewChat}
+        onSessionDelete={handleSessionDelete}
+        onHoverChange={setIsSidebarHovered}
+      />
+
+      {/* 홈 버튼 (로고) */}
+      <button
+        onClick={handleStartNewChat}
+        className={`fixed top-6 z-50 text-xl font-bold text-dark-800 hover:text-primary-400 transition-all duration-300 ease-in-out ${
+          (isSidebarOpen || isSidebarHovered) ? 'md:left-[336px]' : 'md:left-[80px]'
+        } left-6`}
+        role="button"
+        aria-label="새 대화 시작 - Sapie-Braille 홈으로 이동"
+        tabIndex={0}
+      >
+        Sapie-Braille
+      </button>
+
+      {/* 로그아웃 버튼 */}
+      {/* <button
+        onClick={handleLogout}
+        className={`fixed top-6 right-6 z-50 text-sm px-4 py-2 bg-white hover:bg-gray-100 text-gray-700 hover:text-black border border-gray-300 rounded-lg transition-all duration-200`}
+        role="button"
+        aria-label={`${username}님, 로그아웃하기`}
+        tabIndex={0}
+      >
+        {username} 로그아웃
+      </button> */}
+
+      {/* 메인 컨테이너 */}
+      <div className={`flex-1 flex flex-col transition-all duration-300 ease-in-out md:pl-[56px] ${
+        (isSidebarOpen || isSidebarHovered) ? 'md:pl-80' : ''
+      }`}>
+        {/* 메인 콘텐츠 영역 */}
+        <div className="flex-1 flex flex-col p-4 overflow-y-auto">
+          {!hasStartedChat ? (
+            <WelcomeScreen 
+              micPermissionGranted={micPermissionGranted}
+              username={username}
+              selectedAgentId={selectedAgentId}
+              isAgentSelected={isAgentSelected}
+              onAgentSelect={selectAgent}
+              agents={agents}
+            />
+          ) : (
+            <ChatMessages
+              messages={messages}
+              isProcessing={isProcessing}
+              isStreaming={isStreaming}
+              messagesEndRef={messagesEndRef}
+              selectedAgentId={selectedAgentId}
+            />
+          )}
+        </div>
+
+        {/* 하단 고정 입력창 */}
+        <ChatInput
+          ref={chatInputRef}
+          inputText={inputText}
+          setInputText={setInputText}
+          selectedFile={selectedFile}
+          fileInputRef={fileInputRef}
+          onFileChange={handleFileChange}
+          onRemoveFile={handleRemoveFile}
+          isRecording={isRecording}
+          onVoiceClick={handleVoiceClick}
+          isProcessing={isProcessing}
+          onSubmit={handleSubmit}
+          selectedAgentId={selectedAgentId}
+        />
+      </div>
+
+      {/* 스페이스바 녹음 인디케이터 */}
+      <SpacebarIndicator
+        isHolding={isHolding}
+        isRecording={isSpacebarRecording}
+        holdProgress={holdProgress}
+        waitingForSecondClick={waitingForSecondClick}
+        mode={mode}
+      />
+    </div>
+  )
+}
+
+
+==================================================
+FILE PATH: src\app\page_old.tsx
+==================================================
+'use client'
+
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import Sidebar from '@/components/Sidebar'
+import { useSpacebarRecording } from '@/hooks/useSpacebarRecording'
+import { SpacebarIndicator } from '@/components/SpacebarIndicator'
+// 🔒 보안 개선: AWS SDK 제거 (Asset Service 사용)
+import { MarkdownRenderer } from '@/components/MarkdownRenderer'
+import { getApiUrl } from '@/utils/env'
+
+interface DifyFile {
+  id: string;
+  name: string;
+  type: string;
+  mime_type: string;
+}
+
+interface Message {
+  id: string
+  type: 'user' | 'assistant'
+  content: string
+  timestamp: Date
+  isVoice?: boolean
+  files?: DifyFile[]
+}
+
+interface ChatSession {
+  id: string
+  title: string
+  timestamp: Date
+  lastMessage: string
+  messages: Message[]
+}
+
+// 파일 아이콘을 반환하는 헬퍼 함수
+const getFileIcon = (fileType: string) => {
+  if (fileType.startsWith('image/')) {
+    return (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+    );
+  }
+  if (fileType.startsWith('audio/')) {
+    return (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z" />
+      </svg>
+    );
+  }
+  if (fileType === 'application/pdf' || fileType.startsWith('text/')) {
+    return (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    );
+  }
+  return (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+    </svg>
+  );
+};
+
+export default function Home() {
+  const [inputText, setInputText] = useState('')
+  const [messages, setMessages] = useState<Message[]>([])
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [isStreaming, setIsStreaming] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
+  const [hasStartedChat, setHasStartedChat] = useState(false)
+  const [micPermissionGranted, setMicPermissionGranted] = useState<boolean | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+
+  // 사이드바 관련 상태
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [isSidebarHovered, setIsSidebarHovered] = useState(false)
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([])
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // 🔒 보안 개선: AWS 설정을 백엔드 Asset Service로 이전
+  // AWS 자격 증명은 클라이언트에 노출되지 않도록 백엔드에서 처리합니다.
+
+  // 마이크 권한 확인 로직
+  useEffect(() => {
+    const checkMicPermission = async () => {
+      try {
+        // 권한을 요청하거나, 이미 있다면 스트림을 가져옴
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // 스트림을 즉시 중지하여 실제로 사용하지 않도록 함 (권한 확인 목적)
+        stream.getTracks().forEach(track => track.stop());
+        setMicPermissionGranted(true);
+      } catch (error) {
+        console.error("마이크 권한이 거부되었습니다.", error);
+        setMicPermissionGranted(false);
+      }
+    };
+
+    checkMicPermission();
+  }, []); // 빈 배열로 마운트 시 한 번만 실행
+
+  // Ctrl+O 파일 열기 단축키
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.key === 'o') {
+        event.preventDefault();
+        fileInputRef.current?.click();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  // 서버에서 대화 세션 불러오기 (Dify API 통해)
+  const loadChatSessionsFromServer = useCallback(async () => {
+    try {
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/conversations?user=default-user&limit=50`)
+      if (response.ok) {
+        const data = await response.json()
+        const serverSessions = data.data.map((conv: any) => ({
+          id: conv.id,
+          title: conv.title,
+          timestamp: new Date(conv.timestamp * 1000), // unix timestamp를 Date로 변환
+          lastMessage: '', // 서버에서는 lastMessage를 별도로 제공하지 않음
+          messages: [] // 메시지는 별도 API로 로드
+        }))
+        // 추가 안전 정렬: 최신 순으로 정렬 (내림차순)
+        serverSessions.sort((a: any, b: any) => b.timestamp.getTime() - a.timestamp.getTime())
+        setChatSessions(serverSessions)
+        console.log(`서버에서 ${serverSessions.length}개의 대화 세션을 불러왔습니다.`)
+      } else {
+        console.warn('서버에서 대화 목록을 불러오는데 실패했습니다. 로컬 저장소를 사용합니다.')
+        loadChatSessionsFromLocalStorage()
+      }
+    } catch (error) {
+      console.error('서버 대화 목록 로드 오류:', error)
+      // 서버 연결 실패 시 로컬 저장소 사용
+      loadChatSessionsFromLocalStorage()
+    }
+  }, [])
+
+  // 로컬스토리지에서 대화 세션 불러오기 (폴백용)
+  const loadChatSessionsFromLocalStorage = useCallback(() => {
+    const savedSessions = localStorage.getItem('chatSessions')
+    if (savedSessions) {
+      const sessions = JSON.parse(savedSessions)
+      // Date 객체로 변환
+      const parsedSessions = sessions.map((session: any) => ({
+        ...session,
+        timestamp: new Date(session.timestamp),
+        messages: session.messages.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        }))
+      }))
+      // 로컬 저장소에서도 최신 순으로 정렬 (내림차순)
+      parsedSessions.sort((a: any, b: any) => b.timestamp.getTime() - a.timestamp.getTime())
+      setChatSessions(parsedSessions)
+      console.log(`로컬 저장소에서 ${parsedSessions.length}개의 대화 세션을 불러왔습니다.`)
+    }
+  }, [])
+
+  // 컴포넌트 마운트 시 서버에서 대화 목록 로드
+  useEffect(() => {
+    loadChatSessionsFromServer()
+  }, [loadChatSessionsFromServer])
+
+  // 대화 세션 저장
+  const saveChatSessions = useCallback((sessions: ChatSession[]) => {
+    localStorage.setItem('chatSessions', JSON.stringify(sessions))
+    setChatSessions(sessions)
+  }, [])
+
+  // 대화 제목 자동 생성
+  const generateChatTitle = (firstMessage: string): string => {
+    if (firstMessage.length <= 30) {
+      return firstMessage
+    }
+    return firstMessage.substring(0, 30) + '...'
+  }
+
+  // 새 대화 시작
+  const startNewChat = useCallback(() => {
+    console.log('=== START NEW CHAT ===')
+    console.log('Previous currentSessionId:', currentSessionId)
+    console.log('Previous messages count:', messages.length)
+
+    // 현재 대화가 있다면 저장
+    if (currentSessionId && messages.length > 0) {
+      console.log('Saving current session before starting new chat')
+      const currentSession = chatSessions.find(s => s.id === currentSessionId)
+      if (currentSession) {
+        const updatedSession = {
+          ...currentSession,
+          messages,
+          lastMessage: messages[messages.length - 1]?.content || '',
+          timestamp: new Date()
+        }
+        const updatedSessions = chatSessions.map(s =>
+          s.id === currentSessionId ? updatedSession : s
+        )
+        saveChatSessions(updatedSessions)
+      }
+    }
+
+    // 새 대화 초기화
+    console.log('Initializing new chat state')
+    setMessages([])
+    setHasStartedChat(false)
+    setCurrentSessionId(null) // 세션 ID 초기화
+    setInputText('')
+    setSelectedFile(null)
+    setIsSidebarOpen(false)
+
+    console.log('=== NEW CHAT INITIALIZED ===')
+  }, [currentSessionId, messages, chatSessions, saveChatSessions])
+
+  // 서버에서 특정 대화의 메시지 내역 불러오기
+  const loadMessagesFromServer = useCallback(async (sessionId: string) => {
+    try {
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/conversations/${sessionId}/messages?user=default-user&limit=100`)
+      if (response.ok) {
+        const data = await response.json()
+        const serverMessages = data.messages.map((msg: any) => ({
+          id: msg.id,
+          type: msg.type,
+          content: msg.content,
+          timestamp: new Date(msg.timestamp * 1000), // unix timestamp를 Date로 변환
+          isVoice: msg.isVoice || false,
+          files: msg.files || [] // 파일 정보 추가
+        }))
+        console.log(`서버에서 ${serverMessages.length}개의 메시지를 불러왔습니다.`)
+        return serverMessages
+      } else {
+        console.warn(`대화 ${sessionId}의 메시지를 서버에서 불러오는데 실패했습니다.`)
+        return []
+      }
+    } catch (error) {
+      console.error('서버 메시지 로드 오류:', error)
+      return []
+    }
+  }, [])
+
+  // 대화 선택
+  const selectChatSession = useCallback(async (sessionId: string) => {
+    // 이미 선택된 대화와 같은 대화라면 아무것도 하지 않음
+    if (currentSessionId === sessionId) {
+      console.log('이미 선택된 대화입니다. 동작하지 않습니다.')
+      return
+    }
+
+    const session = chatSessions.find(s => s.id === sessionId)
+    if (session) {
+      // 현재 대화 저장 (순서 유지를 위해 로컬에만 저장)
+      if (currentSessionId && messages.length > 0) {
+        const currentSession = chatSessions.find(s => s.id === currentSessionId)
+        if (currentSession) {
+          const updatedSession = {
+            ...currentSession,
+            messages,
+            lastMessage: messages[messages.length - 1]?.content || ''
+            // timestamp 제거로 순서 변경 방지
+          }
+          const updatedSessions = chatSessions.map(s =>
+            s.id === currentSessionId ? updatedSession : s
+          )
+          // 로컬에만 저장, 서버 새로고침 호출 제거
+          localStorage.setItem('chatSessions', JSON.stringify(updatedSessions))
+          setChatSessions(updatedSessions)
+        }
+      }
+
+      // 선택한 대화의 메시지 불러오기
+      setCurrentSessionId(sessionId)
+      setIsSidebarOpen(false)
+
+      // 먼저 로컬에 저장된 메시지가 있는지 확인
+      if (session.messages && session.messages.length > 0) {
+        setMessages(session.messages)
+        setHasStartedChat(true)
+        console.log('로컬에 저장된 메시지를 사용합니다.')
+      } else {
+        // 로컬에 메시지가 없으면 서버에서 로드
+        console.log('서버에서 메시지를 불러옵니다...')
+        const serverMessages = await loadMessagesFromServer(sessionId)
+        setMessages(serverMessages)
+        setHasStartedChat(serverMessages.length > 0)
+
+        // 불러온 메시지를 세션에 저장 (순서 유지)
+        if (serverMessages.length > 0) {
+          const updatedSession = {
+            ...session,
+            messages: serverMessages,
+            lastMessage: serverMessages[serverMessages.length - 1]?.content || ''
+            // timestamp 업데이트 제거
+          }
+          const updatedSessions = chatSessions.map(s =>
+            s.id === sessionId ? updatedSession : s
+          )
+          setChatSessions(updatedSessions)
+        }
+      }
+    }
+  }, [currentSessionId, messages, chatSessions, loadMessagesFromServer])
+
+  // 대화 삭제
+  const handleDeleteSession = useCallback(async (sessionId: string) => {
+    try {
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/conversations/${sessionId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ user: "default-user" })
+      });
+
+      if (response.ok) {
+        console.log(`대화 ${sessionId}가 성공적으로 삭제되었습니다.`);
+
+        // 상태에서 해당 세션 제거
+        const updatedSessions = chatSessions.filter(s => s.id !== sessionId);
+        setChatSessions(updatedSessions);
+
+        // 로컬스토리지에서도 제거
+        localStorage.setItem('chatSessions', JSON.stringify(updatedSessions));
+
+        // 현재 보고 있던 대화가 삭제된 경우, 새 대화 시작
+        if (currentSessionId === sessionId) {
+          startNewChat();
+        }
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `대화 삭제 실패: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('대화 삭제 오류:', error);
+      alert(`대화 삭제 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+    }
+  }, [currentSessionId, startNewChat, chatSessions]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      // 파일을 선택하면 텍스트 입력창은 비워줍니다.
+      setInputText('');
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  // UUID 생성 함수
+  const generateUUID = () => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID()
+    }
+    // 폴백: 간단한 UUID 생성
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+      const r = Math.random() * 16 | 0
+      const v = c === 'x' ? r : (r & 0x3 | 0x8)
+      return v.toString(16)
+    })
+  }
+
+  // Dify 파일 타입 추론 함수
+  const getDifyFileType = (mimeType: string): string => {
+    if (mimeType.startsWith('image/')) return 'image';
+    if (mimeType.startsWith('audio/')) return 'audio';
+    if (mimeType.startsWith('video/')) return 'video';
+    // 문서 타입 추가
+    const docMimeTypes = [
+      'application/pdf', 'text/plain', 'text/markdown', 'text/csv',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
+      'application/vnd.ms-excel', // xls
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // docx
+      'application/msword', // doc
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation', // pptx
+      'application/vnd.ms-powerpoint', // ppt
+      'text/html', 'application/xml', 'application/epub+zip', 'message/rfc822'
+    ];
+    if (docMimeTypes.includes(mimeType)) return 'document';
+
+    return 'custom'; // 기타
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!inputText.trim() && !selectedFile) return
+
+    if (!hasStartedChat) setHasStartedChat(true)
+    setIsProcessing(true)
+
+    // 새 대화 세션 생성 (메시지 전송 시점에 UUID 생성)
+    let sessionId = currentSessionId
+    console.log('=== HANDLE SUBMIT ===')
+    console.log('Current sessionId:', currentSessionId)
+
+    if (!currentSessionId) {
+      sessionId = generateUUID()
+      console.log('Generated new sessionId:', sessionId)
+      setCurrentSessionId(sessionId)
+    } else {
+      console.log('Using existing sessionId:', sessionId)
+    }
+
+    const content = inputText.trim();
+    const isVoice = false;
+    let difyFiles: any[] = [];
+
+    // Dify 파일 업로드 로직
+    if (selectedFile) {
+      try {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('user', 'default-user'); // Dify API 요구사항
+
+        console.log('Uploading file to Dify proxy...');
+        const apiUrl = getApiUrl();
+        const uploadResponse = await fetch(`${apiUrl}/dify-files-upload`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (uploadResponse.ok) {
+          const uploadResult = await uploadResponse.json();
+          console.log('Dify file upload successful:', uploadResult);
+
+          difyFiles.push({
+            type: getDifyFileType(selectedFile.type),
+            transfer_method: 'local_file',
+            upload_file_id: uploadResult.id,
+          });
+
+        } else {
+          const errorData = await uploadResponse.json();
+          throw new Error(errorData.detail || 'Dify 파일 업로드 실패');
+        }
+
+      } catch (error) {
+        console.error("Dify 파일 업로드 오류:", error);
+        alert(`파일 업로드 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+        setIsProcessing(false);
+        return;
+      }
+    }
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      type: 'user',
+      content: content,
+      timestamp: new Date(),
+      isVoice: isVoice,
+      files: difyFiles.map(file => ({ // 파일 정보를 메시지에 포함
+        id: file.upload_file_id,
+        name: selectedFile?.name || 'unknown file',
+        type: file.type,
+        mime_type: selectedFile?.type || 'application/octet-stream'
+      }))
+    }
+
+    const updatedMessages = [...messages, userMessage]
+    setMessages(updatedMessages)
+    setInputText('')
+    handleRemoveFile() // 메시지 전송 후 파일 선택 해제
+
+    // 실시간 assistant 메시지 미리 생성
+    const assistantMessage: Message = {
+      id: (Date.now() + 1).toString(),
+      type: 'assistant',
+      content: "",
+      timestamp: new Date()
+    }
+
+    // API Gateway /process 엔드포인트 호출
+    try {
+      const requestData = {
+        query: userMessage.content,
+        conversation_id: sessionId || "",
+        user: "default-user",
+        files: difyFiles // Dify 파일 정보 포함
+      }
+
+      console.log('=== API REQUEST ===')
+      console.log('Request data:', requestData)
+      console.log('Session ID being sent:', sessionId)
+
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/process`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+      })
+
+      if (!response.ok) {
+        throw new Error(`API 호출 실패: ${response.status} ${response.statusText}`)
+      }
+
+      // 스트리밍 응답 처리
+      let assistantContent = ""
+      let conversationId = ""
+
+      // assistant 메시지를 즉시 추가 (빈 내용으로 시작)
+      const messagesWithAssistant = [...updatedMessages, assistantMessage]
+      setMessages(messagesWithAssistant)
+
+      // 스트리밍 시작
+      setIsStreaming(true)
+
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+
+      if (!reader) {
+        throw new Error('스트리밍 응답을 읽을 수 없습니다')
+      }
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          const chunk = decoder.decode(value)
+          const lines = chunk.split('\n')
+
+          for (const line of lines) {
+            if (line.trim().startsWith('data: ')) {
+              try {
+                const jsonStr = line.trim().substring(6) // "data: " 제거
+                if (jsonStr.trim() === '') continue
+
+                const data = JSON.parse(jsonStr)
+
+                if (data.event === 'message') {
+                  // 실시간으로 텍스트 청크 추가
+                  const chunk = data.chunk || ''
+                  assistantContent += chunk
+
+                  // 실시간으로 메시지 업데이트
+                  setMessages(prevMessages =>
+                    prevMessages.map(msg =>
+                      msg.id === assistantMessage.id
+                        ? { ...msg, content: assistantContent }
+                        : msg
+                    )
+                  )
+                } else if (data.event === 'message_end') {
+                  // 스트리밍 완료
+                  conversationId = data.conversation_id || ''
+                  console.log('스트리밍 완료:', { assistantContent, conversationId })
+                  setIsStreaming(false)
+
+                  // TTS 호출 - 스트리밍 완료 후 음성 생성
+                  if (assistantContent.trim()) {
+                    try {
+                      console.log('TTS 호출 시작:', assistantContent)
+                      const apiUrl = getApiUrl();
+                      const ttsResponse = await fetch(`${apiUrl}/synthesize`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                          text: assistantContent,
+                          voice: 'alloy',
+                          speed: 1.0,
+                          format: 'mp3'
+                        })
+                      })
+
+                      if (ttsResponse.ok) {
+                        // 오디오 블롭을 받아서 자동 재생
+                        const audioBlob = await ttsResponse.blob()
+                        const audioUrl = URL.createObjectURL(audioBlob)
+                        const audio = new Audio(audioUrl)
+
+                        console.log('TTS 오디오 생성 완료, 자동 재생 비활성화')
+                        // 자동 재생 기능 비활성화
+                        // audio.play().catch(error => {
+                        //   console.warn('자동 재생 실패 (브라우저 정책):', error)
+                        //   // 자동 재생이 차단된 경우에 대한 처리는 향후 추가
+                        // })
+
+                        // 메모리 정리
+                        audio.onended = () => {
+                          URL.revokeObjectURL(audioUrl)
+                        }
+                      } else {
+                        console.error('TTS 호출 실패:', ttsResponse.status)
+                      }
+                    } catch (ttsError) {
+                      console.error('TTS 처리 오류:', ttsError)
+                      // TTS 실패는 치명적이지 않으므로 사용자 경험을 방해하지 않음
+                    }
+                  }
+                } else if (data.event === 'error') {
+                  // 에러 처리
+                  const errorMsg = data.message || '알 수 없는 오류'
+                  throw new Error(`서버 오류: ${errorMsg}`)
+                }
+              } catch (parseError) {
+                console.warn('JSON 파싱 오류:', parseError, 'Line:', line)
+                continue
+              }
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock()
+        setIsStreaming(false)
+      }
+
+      // 최종 메시지 상태 확인
+      if (!assistantContent) {
+        assistantContent = "응답을 받지 못했습니다."
+        setMessages(prevMessages =>
+          prevMessages.map(msg =>
+            msg.id === assistantMessage.id
+              ? { ...msg, content: assistantContent }
+              : msg
+          )
+        )
+      }
+
+      const finalMessages = messagesWithAssistant.map(msg =>
+        msg.id === assistantMessage.id
+          ? { ...msg, content: assistantContent }
+          : msg
+      )
+
+      // 대화 세션 저장/업데이트
+      if (sessionId) {
+        const existingSession = chatSessions.find(s => s.id === sessionId)
+        const sessionTitle = existingSession?.title || generateChatTitle(userMessage.content)
+
+        const sessionData: ChatSession = {
+          id: sessionId,
+          title: sessionTitle,
+          timestamp: new Date(),
+          lastMessage: assistantContent,
+          messages: finalMessages
+        }
+
+        const updatedSessions = existingSession
+          ? chatSessions.map(s => s.id === sessionId ? sessionData : s)
+          : [...chatSessions, sessionData]
+
+        saveChatSessions(updatedSessions)
+
+        // 새 대화가 생성되었으므로 서버에서 대화 목록 새로고침
+        await loadChatSessionsFromServer()
+      }
+
+    } catch (error) {
+      console.error("API 호출 오류:", error)
+
+      // 오류 발생 시 assistant 메시지 업데이트 또는 새 에러 메시지 추가
+      const errorContent = `죄송합니다. 서버와 통신 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`
+
+      // 이미 추가된 assistant 메시지가 있다면 업데이트, 없다면 새로 추가
+      if (messages.some(msg => msg.id === assistantMessage?.id)) {
+        setMessages(prevMessages =>
+          prevMessages.map(msg =>
+            msg.id === assistantMessage.id
+              ? { ...msg, content: errorContent }
+              : msg
+          )
+        )
+      } else {
+        const errorMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          type: 'assistant',
+          content: errorContent,
+          timestamp: new Date()
+        }
+        setMessages([...updatedMessages, errorMessage])
+      }
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const startRecording = useCallback(async () => {
+    // 화면 전환 로직을 이곳에서 제거
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mediaRecorder = new MediaRecorder(stream)
+      mediaRecorderRef.current = mediaRecorder
+      chunksRef.current = []
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunksRef.current.push(event.data)
+        }
+      }
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' })
+
+        const formData = new FormData()
+        formData.append('file', audioBlob, 'recording.webm')
+        formData.append('model', 'whisper-1')
+        formData.append('language', 'ko')
+
+        // '처리 중' 상태 변경 로직을 일시적으로 비활성화하여 부작용을 방지합니다.
+        // setIsProcessing(true); 
+
+        let transcribedText = "";
+        try {
+          // 🔒 보안 개선: API Gateway를 통한 안전한 STT 호출
+          const apiUrl = getApiUrl();
+          const response = await fetch(`${apiUrl}/transcribe`, {
+            method: 'POST',
+            body: formData,
+          })
+
+          const result = await response.json()
+
+          if (response.ok) {
+            transcribedText = result.transcription || result.text;
+
+            const hallucinationFilter = [
+              "MBC 뉴스 이덕영입니다",
+              "시청해주셔서 감사합니다",
+              "Thanks for watching",
+              "자막",
+            ];
+
+            const isHallucination = hallucinationFilter.some(filterText => transcribedText.includes(filterText));
+            if (isHallucination) {
+              transcribedText = "";
+              console.log("Hallucination detected:", transcribedText);
+            }
+
+          } else {
+            throw new Error(result.error?.message || "알 수 없는 API 오류")
+          }
+
+        } catch (error) {
+          console.error("음성 변환 API 호출 오류:", error)
+          const errorMessage = error instanceof Error ? error.message : "알 수 없는 오류"
+          alert(`음성 변환 중 오류가 발생했습니다: ${errorMessage}`)
+        }
+
+        // 변환된 텍스트를 입력창에 추가하는 핵심 로직만 남깁니다.
+        if (transcribedText.trim()) {
+          setInputText(prevText => {
+            const separator = prevText.trim() ? ' ' : '';
+            return prevText + separator + transcribedText;
+          });
+
+          // 음성 입력 후 입력창에 포커스 이동
+          setTimeout(() => {
+            if (textareaRef.current) {
+              textareaRef.current.focus();
+              // 커서를 텍스트 끝으로 이동
+              const length = textareaRef.current.value.length;
+              textareaRef.current.setSelectionRange(length, length);
+            }
+          }, 100); // 약간의 딜레이를 주어 상태 업데이트 완료 후 포커스
+        }
+
+        // '처리 중' 상태 변경 로직 비활성화
+        // setIsProcessing(false);
+
+        stream.getTracks().forEach(track => track.stop())
+      }
+
+      mediaRecorder.start()
+      setIsRecording(true) // 페이지의 isRecording 상태 업데이트
+    } catch (error) {
+      console.error('음성 녹음 오류:', error)
+      alert('마이크 권한이 필요합니다.')
+    }
+  }, []) // hasStartedChat 의존성 제거
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop()
+    }
+    setIsRecording(false) // 페이지의 isRecording 상태 업데이트
+  }, [])
+
+  const handleVoiceClick = () => {
+    if (isRecording) {
+      stopRecording()
+    } else {
+      startRecording()
+    }
+  }
+
+  // 스페이스바 녹음 기능 통합
+  const {
+    isHolding,
+    isRecording: isSpacebarRecording,
+    holdProgress
+  } = useSpacebarRecording({
+    onStartRecording: startRecording,
+    onStopRecording: stopRecording,
+    holdDuration: 2000
+  });
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSubmit(e as any)
+    }
+  }
+
+  const handleQuickAction = (text: string) => {
+    setInputText(text)
+    if (!hasStartedChat) setHasStartedChat(true)
+  }
+
+  // 최신순으로 정렬된 대화 세션 (useMemo로 최적화)
+  const sortedChatSessions = useMemo(() =>
+    [...chatSessions].sort((a, b) =>
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    ), [chatSessions]
+  );
+
+  return (
+    <div className="flex h-screen" role="application" aria-label="Sapie-Braille 시각장애인 AI 어시스턴트">
+      {/* 사이드바 */}
+      <Sidebar
+        isOpen={isSidebarOpen}
+        onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+        chatSessions={sortedChatSessions}
+        currentSessionId={currentSessionId}
+        onSessionSelect={selectChatSession}
+        onNewChat={startNewChat}
+        onSessionDelete={handleDeleteSession}
+        onHoverChange={(h) => setIsSidebarHovered(h)}
+      />
+
+      {/* 홈 버튼 (로고) - 사이드바 상태에 따라 위치 조정 */}
+      <button
+        onClick={startNewChat}
+        className={`fixed top-6 z-50 text-xl font-bold text-dark-100 hover:text-primary-400 transition-all duration-300 ease-in-out ${(isSidebarOpen || isSidebarHovered) ? 'md:left-[336px]' : 'md:left-[80px]'
+          } left-6`}
+        role="button"
+        aria-label="새 대화 시작 - Sapie-Braille 홈으로 이동"
+        tabIndex={0}
+      >
+        Sapie-Braille
+      </button>
+
+      {/* 메인 컨테이너 */}
+      <div className={`flex-1 flex flex-col transition-all duration-300 ease-in-out md:pl-[56px] ${(isSidebarOpen || isSidebarHovered) ? 'md:pl-80' : ''}`}>
+        {/* 메인 콘텐츠 영역 - 스크롤 가능 */}
+        <div className="flex-1 flex flex-col p-4 overflow-y-auto">
+          {!hasStartedChat ? (
+            <div className="welcome-screen" role="main" aria-label="시각장애인을 위한 AI 어시스턴트 홈">
+              <p className="welcome-title text-6xl font-bold mb-10" role="heading" aria-level={1}>
+                안녕하세요, Hyeonchan
+              </p>
+              <p className="welcome-subtitle text-2xl" role="text">
+                시각장애인을 위한 Sapie-Braille입니다.<br />
+                음성으로 말씀하시거나 텍스트로 입력하세요.
+              </p>
+              <p className="mt-1, mb-10">
+                <span className="text-primary-400 text-lg font-semibold">스페이스바를 2초간 누르면 음성 녹음이 시작됩니다.</span>
+                <br />
+                <span className="text-primary-400 text-lg font-semibold">CTRL + O를 누르면 파일 탐색기가 실행됩니다.</span>
+              </p>
+
+              {/* 마이크 권한 상태 표시
+            <div className="mt-6 text-center">
+              {micPermissionGranted === null && (
+                <p className="text-sm text-gray-400 animate-pulse">마이크 권한을 확인 중입니다...</p>
+              )}
+              {micPermissionGranted === true && (
+                <p className="text-sm text-green-400">✅ 마이크가 준비되었습니다.</p>
+              )}
+              {micPermissionGranted === false && (
+                <p className="text-sm text-red-400">⚠️ 마이크 권한이 거부되었습니다. 브라우저 설정에서 허용해주세요.</p>
+              )}
+            </div> */}
+
+              <div className="quick-actions" role="group" aria-label="빠른 실행 버튼들" aria-describedby="quick-actions-help">
+                <div id="quick-actions-help" className="sr-only">
+                  다음 버튼들 중 하나를 선택하여 빠르게 대화를 시작할 수 있습니다. 키보드의 Tab 키로 이동하고 Enter 키로 선택하세요.
+                </div>
+                <button
+                  className="quick-action-btn hover:bg-dark-800 hover:border-gray-100"
+                  onClick={() => handleQuickAction('오늘 날씨는 어때?')}
+                  aria-label="점역 요청하기 - 점역 변환을 요청합니다"
+                  role="button"
+                  tabIndex={0}
+                >
+                  <span aria-hidden="true">○</span> 점역 변환
+                </button>
+                <button
+                  className="quick-action-btn hover:bg-dark-800 hover:border-gray-100"
+                  onClick={() => handleQuickAction('뉴스 읽어줘')}
+                  aria-label="뉴스 읽어달라고 요청하기 - 뉴스 읽어줘 라고 질문합니다"
+                  role="button"
+                  tabIndex={0}
+                >
+                  <span aria-hidden="true">◇</span> 뉴스 읽기
+                </button>
+                <button
+                  className="quick-action-btn hover:bg-dark-800 hover:border-gray-100"
+                  onClick={() => handleQuickAction('일정 확인해줘')}
+                  aria-label="복지 확인 요청하기 - 복지 확인해줘 라고 질문합니다"
+                  role="button"
+                  tabIndex={0}
+                >
+                  <span aria-hidden="true">□</span> 복지 정보
+                </button>
+                <button
+                  className="quick-action-btn hover:bg-dark-800 hover:border-gray-100"
+                  onClick={() => handleQuickAction('도움말')}
+                  aria-label="도움말 보기 - 도움말을 요청합니다"
+                  role="button"
+                  tabIndex={0}
+                >
+                  <span aria-hidden="true">△</span> 도움말
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col w-full max-w-4xl mx-auto" role="main" aria-label="대화 영역">
+              <div
+                className="flex-1 overflow-y-auto mb-5 flex flex-col py-5"
+                role="log"
+                aria-live="polite"
+                aria-label="대화 내용"
+              >
+                {messages.map((message, index) => (
+                  <div
+                    key={message.id}
+                    className={`flex flex-col mb-4 w-full ${message.type === 'user' ? 'items-end' : 'items-start'}`}
+                  >
+                    {/* 파일 첨부 표시 (말풍선 밖으로 이동 및 스타일 적용) */}
+                    {message.files && message.files.length > 0 && (
+                      <div className={`file-bubble-container max-w-xs sm:max-w-sm md:max-w-md ${message.type === 'user' ? 'self-end' : 'self-start'}`}>
+                        {message.files.map(file => {
+                          const extension = file.name.split('.').pop()?.toUpperCase() || '';
+                          return (
+                            <a
+                              key={file.id}
+                              href={`${getApiUrl()}/files/${file.id}/preview`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="file-bubble"
+                              aria-label={`${file.name} 파일 보기`}
+                            >
+                              <div className="file-name truncate">{file.name}</div>
+                              <div className="file-meta">
+                                {getFileIcon(file.mime_type)}
+                                <span className="file-extension">{extension}</span>
+                              </div>
+                            </a>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* 텍스트 메시지 (내용이 있을 때만 표시) */}
+                    {message.content && (
+                      <div
+                        className={`chat-message ${message.type} mt-2`}
+                        role="article"
+                        aria-label={`${message.type === 'user' ? '사용자' : 'AI 어시스턴트'} 메시지 ${index + 1}번`}
+                        aria-describedby={`message-content-${message.id}`}
+                        tabIndex={0}
+                      >
+                        {message.isVoice && <span className="text-xs opacity-70" aria-label="음성 메시지" role="img">● </span>}
+
+                        <div id={`message-content-${message.id}`} aria-live="polite">
+                          {message.type === 'assistant' ? (
+                            <MarkdownRenderer
+                              content={message.content}
+                              isAssistant={true}
+                              animate={false}
+                              isStreaming={isStreaming && index === messages.length - 1}
+                            />
+                          ) : (
+                            message.content
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {isProcessing && (
+                  <div
+                    className="chat-message assistant self-start"
+                    role="status"
+                    aria-label="AI가 응답을 생성하고 있습니다"
+                    aria-live="polite"
+                    aria-atomic="true"
+                  >
+                    <div className="bouncing-loader">
+                      <div className="dot1"></div>
+                      <div className="dot2"></div>
+                      <div></div>
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+            </div>
+          )}
+        </div>
+
+        {/* 하단 고정 입력창 */}
+        <div className="chat-input-container" role="region" aria-label="메시지 입력 영역" aria-describedby="input-help">
+          <div id="input-help" className="sr-only">
+            메시지를 입력하거나 음성 녹음을 사용할 수 있습니다. Ctrl+O로 파일을 첨부하고, 스페이스바 2초 길게 누르면 음성 녹음이 시작됩니다.
+          </div>
+          {/* 파일 업로드를 위한 숨겨진 input */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            className="hidden"
+            aria-label="파일 선택"
+            accept="*/*"
+          />
+
+          <form onSubmit={handleSubmit} className="w-full" role="form" aria-label="메시지 전송 폼">
+            {/* 파일 선택 시 표시되는 칩 */}
+            {selectedFile && (
+              <div
+                className="mb-3 flex items-center bg-dark-800 border border-dark-700 text-dark-100 text-sm font-medium px-3 py-2 rounded-full self-start w-fit"
+                role="group"
+                aria-label={`선택된 파일: ${selectedFile.name}`}
+              >
+                <span aria-hidden="true">{getFileIcon(selectedFile.type)}</span>
+                <span className="ml-2 mr-2" aria-label={`파일명: ${selectedFile.name}`}>{selectedFile.name}</span>
+                <button
+                  type="button"
+                  onClick={handleRemoveFile}
+                  className="w-5 h-5 bg-gray-700 rounded-full flex items-center justify-center text-white font-bold hover:bg-gray-600 transition-colors"
+                  aria-label={`선택한 파일 ${selectedFile.name} 제거하기`}
+                  tabIndex={0}
+                >
+                  <span aria-hidden="true">&times;</span>
+                </button>
+              </div>
+            )}
+
+            <div className="chat-input-wrapper" role="group" aria-label="메시지 입력 도구">
+              <button
+                type="button"
+                className={`voice-btn ${isRecording ? 'recording' : ''}`}
+                onClick={handleVoiceClick}
+                disabled={isProcessing}
+                aria-label={isRecording ? '음성 녹음 중지하기' : '음성 녹음 시작하기'}
+                aria-pressed={isRecording}
+                aria-describedby="voice-btn-help"
+                tabIndex={0}
+              >
+                <span aria-hidden="true">{isRecording ? '■' : '●'}</span>
+              </button>
+              <div id="voice-btn-help" className="sr-only">
+                {isRecording ? '현재 음성을 녹음 중입니다. 클릭하면 녹음이 중지됩니다.' : '클릭하여 음성 녹음을 시작할 수 있습니다.'}
+              </div>
+
+              <textarea
+                ref={textareaRef}
+                id="chat-input"
+                className="chat-input"
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder={selectedFile ? "파일에 대한 설명을 입력하세요..." : "Sapie-Braille에게 무엇이든 물어보세요"}
+                rows={1}
+                aria-label="메시지 입력창"
+                aria-describedby="input-instructions"
+                disabled={isProcessing || isRecording}
+                role="textbox"
+                aria-multiline="true"
+                aria-required="false"
+              />
+              <div id="input-instructions" className="sr-only">
+                Enter 키로 메시지를 전송하고, Shift+Enter로 줄바꿈을 할 수 있습니다. 현재 {inputText.length}자 입력되었습니다.
+              </div>
+
+              <button
+                type="submit"
+                className="send-btn"
+                disabled={isProcessing || (!inputText.trim() && !selectedFile) || isRecording}
+                aria-label={isProcessing ? '메시지 처리 중...' : '메시지 전송하기'}
+                aria-describedby="send-btn-help"
+                tabIndex={0}
+              >
+                <span aria-hidden="true">{isProcessing ? '○' : '↑'}</span>
+              </button>
+              <div id="send-btn-help" className="sr-only">
+                {isProcessing ? 'AI가 응답을 생성하고 있습니다.' :
+                  (!inputText.trim() && !selectedFile) ? '메시지나 파일을 입력한 후 전송할 수 있습니다.' :
+                    '클릭하여 메시지를 전송합니다.'}
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {/* 스페이스바 녹음 인디케이터 */}
+      <SpacebarIndicator
+        isHolding={isHolding}
+        isRecording={isSpacebarRecording}
+        holdProgress={holdProgress}
+      />
+    </div>
+  )
+}
+
+
+
+==================================================
+FILE PATH: src\app\about\page.tsx
+==================================================
+import Header from '@/components/Header'
+
+export default function About() {
+  return (
+    <>
+      <Header />
+      <div className="container">
+        <div className="card" role="main">
+          <h1 className="text-3xl font-bold mb-6 text-dark-100 text-center tracking-tight">
+            Sapie Braille 소개
+          </h1>
+          
+          <div className="text-base leading-relaxed text-dark-400">
+            <section className="mb-8">
+              <h2 className="text-xl font-semibold mb-4 text-dark-100">
+                프로젝트 개요
+              </h2>
+              <p>
+                Sapie Braille은 시각장애인을 위한 통합 AI 솔루션입니다. 
+                음성 입력(Whisper) → AI 처리(LLM) → 응답 생성의 흐름으로 
+                시각장애인이 자연스럽게 AI와 대화할 수 있는 환경을 제공합니다.
+              </p>
+            </section>
+
+            <section className="mb-8">
+              <h2 className="text-xl font-semibold mb-4 text-dark-100">
+                시스템 아키텍처
+              </h2>
+              <p className="mb-4">
+                시각장애인 중심의 음성 기반 AI 시스템:
+              </p>
+              <ul className="pl-6 mb-4 space-y-2">
+                <li>🎤 <strong>음성 입력</strong>: 마이크를 통한 자연스러운 음성 입력</li>
+                <li>🔤 <strong>Whisper API</strong>: 음성을 정확한 텍스트로 변환</li>
+                <li>🤖 <strong>LLM 처리</strong>: langGraph 기반 지능적인 응답 생성</li>
+                <li>🔊 <strong>음성 응답</strong>: TTS를 통한 자연스러운 음성 출력</li>
+                <li>♿ <strong>접근성</strong>: 스크린 리더 및 키보드 내비게이션 지원</li>
+              </ul>
+            </section>
+
+            <section className="mb-8">
+              <h2 className="text-xl font-semibold mb-4 text-dark-100">
+                주요 기능
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-dark-800 p-4 rounded-xl border border-dark-700">
+                  <h3 className="text-lg font-semibold mb-2 text-dark-100">🎤 음성 인식</h3>
+                  <p className="text-sm text-dark-400">Whisper API를 통한 정확한 음성-텍스트 변환</p>
+                </div>
+                <div className="bg-dark-800 p-4 rounded-xl border border-dark-700">
+                  <h3 className="text-lg font-semibold mb-2 text-dark-100">🤖 AI 챗봇</h3>
+                  <p className="text-sm text-dark-400">langGraph 기반 지능적인 대화형 AI</p>
+                </div>
+                <div className="bg-dark-800 p-4 rounded-xl border border-dark-700">
+                  <h3 className="text-lg font-semibold mb-2 text-dark-100">🔊 음성 출력</h3>
+                  <p className="text-sm text-dark-400">자연스러운 TTS 기반 음성 응답</p>
+                </div>
+                <div className="bg-dark-800 p-4 rounded-xl border border-dark-700">
+                  <h3 className="text-lg font-semibold mb-2 text-dark-100">♿ 접근성 우선</h3>
+                  <p className="text-sm text-dark-400">시각장애인을 위한 완전한 접근성 지원</p>
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-semibold mb-4 text-dark-100">
+                기술 스택
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  'Python', 'langGraph', 'Whisper API', 'OpenAI LLM', 
+                  'Next.js', 'React', 'TypeScript', 'Tailwind CSS'
+                ].map((tech) => (
+                  <span 
+                    key={tech}
+                    className="bg-primary-500 text-white py-1.5 px-3 rounded-2xl text-xs font-medium"
+                  >
+                    {tech}
+                  </span>
+                ))}
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+
+==================================================
+FILE PATH: src\app\login\page.tsx
+==================================================
+'use client'
+
+import React, { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { LoginScreen } from '@/components/LoginScreen'
+import { getApiUrl } from '@/utils/env'
+
+export default function LoginPage() {
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
+  const router = useRouter()
+
+  const handleLogin = async (username: string, password: string) => {
+    setIsLoading(true)
+    setError('')
+
+    try {
+      const apiUrl = getApiUrl()
+      
+      const response = await fetch(`${apiUrl}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username,
+          password
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        // 로그인 성공
+        localStorage.setItem('isLoggedIn', 'true')
+        localStorage.setItem('username', data.username)
+        localStorage.setItem('accessToken', data.access_token)
+        sessionStorage.setItem('justLoggedIn', 'true'); // sessionStorage에 로그인 상태 기록
+        
+        // 메인 페이지에서 통합 안내를 하므로 여기서는 알림을 제거합니다.
+        
+        // 페이지 이동 지연시간을 줄여 더 빠른 화면 전환을 제공합니다.
+        setTimeout(() => {
+          router.push('/')
+        }, 200)
+      } else {
+        // 로그인 실패
+        setError(data.detail || '로그인에 실패했습니다.')
+        
+        // 라이브 영역에 오류 메시지 알림
+        const announceElement = document.getElementById('login-announcements')
+        if (announceElement) {
+          announceElement.textContent = `로그인 실패: ${data.detail || '로그인에 실패했습니다.'}`
+        }
+      }
+    } catch (err) {
+      console.error('Login error:', err)
+      const errorMessage = '서버 연결에 실패했습니다. 네트워크를 확인해 주세요.'
+      setError(errorMessage)
+      
+      // 라이브 영역에 오류 메시지 알림
+      const announceElement = document.getElementById('login-announcements')
+      if (announceElement) {
+        announceElement.textContent = `오류: ${errorMessage}`
+      }
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <>
+      <LoginScreen 
+        onLogin={handleLogin}
+        isLoading={isLoading}
+        error={error}
+      />
+      
+      {/* 라이브 영역 - 로그인 상태 알림 */}
+      <div 
+        id="login-announcements" 
+        aria-live="assertive" 
+        aria-atomic="true" 
+        className="sr-only"
+      ></div>
+    </>
+  )
+}
+
+
+==================================================
+FILE PATH: src\components\ChatInput.tsx
+==================================================
+import React, { useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { getFileIcon } from '@/utils/fileUtils';
+import { announceFileUploadStatus, announceRecordingStatus, announceToScreenReader } from '@/utils/accessibilityUtils';
+
+export interface ChatInputHandles {
+  focus: () => void;
+}
+
+interface ChatInputProps {
+  inputText: string;
+  setInputText: (text: string) => void;
+  selectedFile: File | null;
+  fileInputRef: React.RefObject<HTMLInputElement>;
+  onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onRemoveFile: () => void;
+  isRecording: boolean;
+  onVoiceClick: () => void;
+  isProcessing: boolean;
+  onSubmit: (e: React.FormEvent) => void;
+  selectedAgentId: number;
+}
+
+export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({
+  inputText,
+  setInputText,
+  selectedFile,
+  fileInputRef,
+  onFileChange,
+  onRemoveFile,
+  isRecording,
+  onVoiceClick,
+  isProcessing,
+  onSubmit,
+  selectedAgentId
+}, ref) => {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isDocumentConversionAgent = selectedAgentId === 5;
+  const prevIsRecording = useRef(isRecording);
+  const prevIsProcessing = useRef(isProcessing);
+  const prevSelectedFile = useRef(selectedFile);
+
+  // 녹음 상태 변화 감지 및 알림
+  useEffect(() => {
+    if (prevIsRecording.current !== isRecording) {
+      if (isRecording) {
+        announceRecordingStatus('start');
+      } else if (prevIsRecording.current) {
+        announceRecordingStatus('stop');
+      }
+      prevIsRecording.current = isRecording;
+    }
+  }, [isRecording]);
+
+  // 처리 상태 변화 감지 및 알림
+  useEffect(() => {
+    if (prevIsProcessing.current !== isProcessing) {
+      if (isProcessing) {
+        announceToScreenReader('메시지를 전송했습니다. AI가 응답을 생성하고 있습니다', 'polite');
+      }
+      prevIsProcessing.current = isProcessing;
+    }
+  }, [isProcessing]);
+
+  // 파일 선택 상태 변화 감지 및 알림
+  useEffect(() => {
+    if (prevSelectedFile.current !== selectedFile) {
+      if (selectedFile && !prevSelectedFile.current) {
+        announceFileUploadStatus(selectedFile.name, 'success');
+      } else if (!selectedFile && prevSelectedFile.current) {
+        announceToScreenReader(`${prevSelectedFile.current.name} 파일이 제거되었습니다`, 'polite');
+      }
+      prevSelectedFile.current = selectedFile;
+    }
+  }, [selectedFile]);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      textareaRef.current?.focus();
+    }
+  }));
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      onSubmit(e as any);
+    }
+  };
+
+  const handleVoiceClick = () => {
+    onVoiceClick();
+    // 녹음 상태는 useEffect에서 처리됨
+  };
+
+  const handleFileRemove = () => {
+    onRemoveFile();
+    // 파일 제거는 useEffect에서 처리됨
+  };
+
+  return (
+    <div className="chat-input-container" role="region" aria-label="메시지 입력 영역" aria-describedby="input-help">
+      <div id="input-help" className="sr-only">
+        메시지를 입력하거나 음성 녹음을 사용할 수 있습니다. Ctrl+O로 파일을 첨부하고, 스페이스바를 두 번 연속 눌러서 음성 녹음을 시작/종료할 수 있습니다. Ctrl+R로 텍스트를 음성으로 재생할 수 있습니다.
+      </div>
+      
+      {/* 파일 업로드를 위한 숨겨진 input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={onFileChange}
+        className="hidden"
+        aria-label="파일 선택"
+        accept="*/*"
+      />
+
+      <form onSubmit={onSubmit} className="w-full" role="form" aria-label="메시지 전송 폼">
+        {/* 파일 선택 시 표시되는 칩 */}
+        {selectedFile && (
+          <div
+            className="mb-3 flex items-center bg-gray-100 border border-gray-300 text-gray-800 text-sm font-medium px-3 py-2 rounded-full self-start w-fit"
+            role="group"
+            aria-label={`선택된 파일: ${selectedFile.name}`}
+          >
+            <span className="mr-2">{getFileIcon(selectedFile.type, selectedFile.name)}</span>
+            <span className="ml-2 mr-2" aria-label={`선택된 파일명: ${selectedFile.name}`}>{selectedFile.name}</span>
+            <button
+              type="button"
+              onClick={handleFileRemove}
+              className="w-5 h-5 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 font-bold hover:bg-gray-400 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-white"
+              aria-label={`선택한 파일 ${selectedFile.name} 제거하기`}
+              tabIndex={0}
+            >
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+        )}
+
+        <div className="chat-input-wrapper" role="group" aria-label="메시지 입력 도구">
+          <button
+            type="button"
+            className={`voice-btn ${isRecording ? 'recording' : ''} focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-white`}
+            onClick={handleVoiceClick}
+            disabled={isProcessing}
+            aria-label={isRecording ? '음성 녹음 중지하기' : '음성 녹음 시작하기'}
+            aria-pressed={isRecording}
+            aria-describedby="voice-btn-help"
+            tabIndex={0}
+          >
+            <span aria-hidden="true">{isRecording ? '■' : '●'}</span>
+          </button>
+          <div id="voice-btn-help" className="sr-only">
+            {isRecording ? '현재 음성을 녹음 중입니다. 클릭하면 녹음이 중지됩니다.' : '클릭하여 음성 녹음을 시작할 수 있습니다.'}
+          </div>
+
+          <textarea
+            ref={textareaRef}
+            id="chat-input"
+            className="chat-input"
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder={
+              isDocumentConversionAgent 
+                ? (selectedFile ? "추가 설명을 입력하세요 (선택사항)" : "문서 변환을 위해 파일을 업로드해주세요") 
+                : (selectedFile ? "파일에 대한 설명을 입력하세요..." : "Sapie-Braille에게 무엇이든 물어보세요")
+            }
+            rows={1}
+            aria-label="메시지 입력창"
+            aria-describedby="input-instructions"
+            disabled={isProcessing || isRecording}
+            role="textbox"
+            aria-multiline="true"
+            aria-required="false"
+          />
+          <div id="input-instructions" className="sr-only">
+            Enter 키로 메시지를 전송하고, Shift+Enter로 줄바꿈을 할 수 있습니다. 현재 {inputText.length}자 입력되었습니다.
+          </div>
+
+          <button
+            type="submit"
+            className="send-btn focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-white"
+            disabled={
+              isProcessing || 
+              isRecording || 
+              (isDocumentConversionAgent ? !selectedFile : (!inputText.trim() && !selectedFile))
+            }
+            aria-label={isProcessing ? '메시지 처리 중...' : '메시지 전송하기'}
+            aria-describedby="send-btn-help"
+            tabIndex={0}
+          >
+            <span aria-hidden="true">{isProcessing ? '○' : '↑'}</span>
+          </button>
+          <div id="send-btn-help" className="sr-only">
+            {isProcessing ? 'AI가 응답을 생성하고 있습니다.' :
+              isDocumentConversionAgent ? 
+                (!selectedFile ? '문서 변환을 위해 파일을 업로드해주세요.' : '클릭하여 문서 변환을 시작합니다.') :
+                (!inputText.trim() && !selectedFile) ? '메시지나 파일을 입력한 후 전송할 수 있습니다.' :
+                  '클릭하여 메시지를 전송합니다.'}
+          </div>
+        </div>
+      </form>
+    </div>
+  );
+});
+
+
+==================================================
+FILE PATH: src\components\ChatMessages.tsx
+==================================================
+import React, { useState } from 'react';
+import { Message } from '@/types';
+import { getFileIcon } from '@/utils/fileUtils';
+import { MarkdownRenderer } from './MarkdownRenderer';
+import { getApiUrl } from '@/utils/env';
+
+interface ChatMessagesProps {
+  messages: Message[];
+  isProcessing: boolean;
+  isStreaming: boolean;
+  messagesEndRef: React.RefObject<HTMLDivElement>;
+  selectedAgentId?: number;
+}
+
+export const ChatMessages = ({ messages, isProcessing, isStreaming, messagesEndRef, selectedAgentId = 0 }: ChatMessagesProps) => {
+  const [brailleView, setBrailleView] = useState<Record<string, boolean>>({});
+
+  const toggleBrailleView = (messageId: string) => {
+    setBrailleView(prev => ({ ...prev, [messageId]: !prev[messageId] }));
+  };
+
+  const downloadBrfFile = async (brailleText: string, messageId: string) => {
+    try {
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/download-brf`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          braille_text: brailleText,
+          filename: `braille_${messageId}.brf`
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // 파일 다운로드 처리
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `braille_${messageId}.brf`;
+      
+      document.body.appendChild(a);
+      a.click();
+      
+      // 정리
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      // 접근성 안내
+      const announceElement = document.getElementById('live-announcements');
+      if (announceElement) {
+        announceElement.textContent = 'BRF 파일이 다운로드되었습니다.';
+      }
+      
+    } catch (error) {
+      console.error('BRF 다운로드 실패:', error);
+      
+      // 에러 안내
+      const announceElement = document.getElementById('live-announcements');
+      if (announceElement) {
+        announceElement.textContent = 'BRF 파일 다운로드에 실패했습니다.';
+      }
+    }
+  };
+
+  return (
+    <div className="flex-1 flex flex-col w-full max-w-4xl mx-auto" role="main" aria-label="대화 영역">
+      <div
+        className="flex-1 overflow-y-auto mb-5 flex flex-col py-5"
+        role="log"
+        aria-live="polite"
+        aria-label="대화 내용"
+      >
+        {messages.map((message, index) => (
+          <div
+            key={message.id}
+            className={`flex flex-col mb-4 w-full ${message.type === 'user' ? 'items-end' : 'items-start'}`}
+          >
+            {/* 파일 첨부 표시 */}
+            {message.files && message.files.length > 0 && (
+              <div className={`file-bubble-container max-w-xs sm:max-w-sm md:max-w-md ${message.type === 'user' ? 'self-end' : 'self-start'}`}>
+                {message.files.map(file => {
+                  const extension = file.name.split('.').pop()?.toUpperCase() || '';
+                  return (
+                    <a
+                      key={file.id}
+                      href={`${getApiUrl()}/files/${file.id}/preview`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="file-bubble"
+                      aria-label={`${file.name} 파일 보기`}
+                    >
+                      <div className="file-name truncate">{file.name}</div>
+                      <div className="file-meta">
+                        {getFileIcon(file.mime_type, file.name)}
+                        <span className="file-extension" aria-label={`파일 확장자: ${extension}`}>{extension}</span>
+                      </div>
+                    </a>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 텍스트 메시지 (내용이 있을 때만 표시) */}
+            {message.content && (
+              <div
+                className={`chat-message ${message.type} mt-2`}
+                style={message.type === 'user' ? { backgroundColor: '#f0f0f0' } : { backgroundColor: '#FBFBFB', border: '1px solid #e0e0e0' }}
+                role="article"
+                aria-label={`${message.type === 'user' ? '사용자' : 'AI 어시스턴트'} 메시지 ${index + 1}번`}
+                aria-describedby={`message-content-${message.id}`}
+                tabIndex={0}
+              >
+                {message.isVoice && <span className="text-xs opacity-70" aria-label="음성 메시지" role="img">● </span>}
+
+                <div id={`message-content-${message.id}`} aria-live="polite">
+                  {message.type === 'assistant' ? (
+                    <MarkdownRenderer
+                      content={message.content}
+                      isAssistant={true}
+                      animate={false}
+                      isStreaming={isStreaming && index === messages.length - 1}
+                    />
+                  ) : (
+                    message.content
+                  )}
+                </div>
+              </div>
+            )}
+            {/* 점자 토글 버튼과 내용 - AI 어시스턴트 메시지에만 표시, 에이전트 1번(점역변환)일 때는 숨김 */}
+            {message.braille && !isStreaming && selectedAgentId !== 1 && message.type === 'assistant' && (
+              <div className="w-full flex flex-col items-start">
+                <div className="flex gap-2 items-center">
+                  <button
+                    onClick={() => toggleBrailleView(message.id)}
+                    className="braille-toggle-btn inline-flex items-center gap-2"
+                    aria-label={brailleView[message.id] ? '점자 내용 닫기' : '점자 내용 펼치기'}
+                    aria-expanded={brailleView[message.id]}
+                  >
+                    <svg className={`w-4 h-4 transform transition-transform ${brailleView[message.id] ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span>점자 표시</span>
+                  </button>
+                  <button
+                    onClick={() => downloadBrfFile(message.braille!, message.id)}
+                    className="braille-toggle-btn inline-flex items-center gap-2 bg-blue-600 hover:bg-gray-200"
+                    aria-label="BRF 파일로 다운로드"
+                    title="점자를 BRF 파일로 다운로드하여 점자 디스플레이에서 사용할 수 있습니다"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span>BRF 다운로드</span>
+                  </button>
+                </div>
+                {brailleView[message.id] && (
+                  <div className="braille-accordion-content">
+                    <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                      {message.braille}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+
+        {isProcessing && (
+          <div
+            className="chat-message assistant self-start"
+            role="status"
+            aria-label="AI가 응답을 생성하고 있습니다"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <div className="bouncing-loader">
+              <div className="dot1"></div>
+              <div className="dot2"></div>
+              <div></div>
+            </div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+    </div>
+  );
+};
+
+
+==================================================
+FILE PATH: src\components\Header.tsx
+==================================================
+export default function Header() {
+  return (
+    <header 
+      className="bg-dark-850 border-b border-dark-800 py-4 mb-6"
+      role="banner"
+    >
+      <div className="container">
+        <nav 
+          className="flex justify-between items-center"
+          role="navigation"
+          aria-label="주 내비게이션"
+        >
+          <div 
+            className="text-xl font-bold text-dark-100 tracking-tight"
+            role="heading"
+            aria-level={1}
+          >
+            <span aria-label="사피 브레일, 시각장애인을 위한 AI 어시스턴트">Sapie Braille</span>
+          </div>
+          
+          <div className="flex gap-2" role="list" aria-label="상단 메뉴">
+            <a 
+              href="/" 
+              className="text-dark-100 no-underline py-2 px-4 rounded-lg transition-all duration-200 text-sm font-medium hover:bg-dark-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-dark-900"
+              aria-label="홈 페이지로 이동"
+              role="listitem"
+            >
+              <span aria-hidden="true">🏠</span>
+              <span className="ml-1">홈</span>
+            </a>
+            <a 
+              href="/about" 
+              className="text-dark-400 no-underline py-2 px-4 rounded-lg transition-all duration-200 text-sm font-medium hover:bg-dark-800 hover:text-dark-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-dark-900"
+              aria-label="소개 페이지로 이동"
+              role="listitem"
+            >
+              <span aria-hidden="true">ℹ️</span>
+              <span className="ml-1">소개</span>
+            </a>
+          </div>
+        </nav>
+      </div>
+    </header>
+  )
+}
+
+
+==================================================
+FILE PATH: src\components\LoginScreen.tsx
+==================================================
+'use client'
+
+import React, { useState, useEffect, useRef } from 'react'
+
+interface LoginScreenProps {
+  onLogin: (username: string, password: string) => void
+  isLoading?: boolean
+  error?: string
+}
+
+export const LoginScreen = ({ onLogin, isLoading = false, error }: LoginScreenProps) => {
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const usernameRef = useRef<HTMLInputElement>(null)
+  const passwordRef = useRef<HTMLInputElement>(null)
+  const submitRef = useRef<HTMLButtonElement>(null)
+
+  // 컴포넌트 마운트 시 초기 설정
+  useEffect(() => {
+    // 페이지 진입 시 안내 문구를 스크린리더가 읽도록 설정
+    const welcomeElement = document.getElementById('welcome-announcement')
+    if (welcomeElement) {
+      welcomeElement.textContent = '시각장애인을 위한 AI 어시스턴트 사피 브레일입니다.'
+      welcomeElement.textContent = ''
+    }
+    // 페이지 로드 시 강제로 포커스를 이동시키지 않습니다.
+    // 스크린리더가 페이지 콘텐츠를 순차적으로 읽도록 합니다.
+  }, [])
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!username.trim() || !password.trim()) return
+    onLogin(username, password)
+  }
+
+  // 엔터 키로 다음 필드 이동 처리
+  const handleUsernameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && username.trim()) {
+      e.preventDefault()
+      if (passwordRef.current) {
+        passwordRef.current.focus()
+        // 비밀번호 입력 안내
+        const announceElement = document.getElementById('navigation-announcement')
+        if (announceElement) {
+          announceElement.textContent = '비밀번호를 입력해주세요.'
+        }
+      }
+    }
+  }
+
+  const handlePasswordKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && password.trim() && username.trim()) {
+      e.preventDefault()
+      if (submitRef.current) {
+        submitRef.current.click()
+      }
+    }
+  }
+
+  return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4" role="main" style={{ backgroundColor: '#FBFBFB' }}>
+      {/* 초기 안내 메시지 영역 */}
+      <div 
+        id="welcome-announcement" 
+        aria-live="polite" 
+        aria-atomic="true" 
+        className="sr-only"
+      >
+        로그인 화면입니다. 사용자명을 입력해주세요.
+      </div>
+      
+      {/* 네비게이션 안내 메시지 영역 */}
+      <div 
+        id="navigation-announcement" 
+        aria-live="polite" 
+        aria-atomic="true" 
+        className="sr-only"
+      ></div>
+      
+      <div className="w-full max-w-md">
+        {/* 로고 및 타이틀 */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-800 mb-4" style={{ color: '#252528' }}>
+            Sapie-Braille
+          </h1>
+          <p className="text-lg text-gray-600" style={{ color: '#555' }}>
+            시각장애인을 위한 AI 어시스턴트
+          </p>
+        </div>
+
+        {/* 로그인 폼 */}
+        <div className="card">
+          <form onSubmit={handleSubmit} role="form" aria-label="로그인 폼">
+            {/* 에러 메시지 */}
+            {error && (
+              <div 
+                className="mb-6 p-4 bg-red-100 border border-red-400 rounded-xl text-red-700 text-sm"
+                role="alert"
+                aria-live="polite"
+              >
+                <span aria-hidden="true">⚠️</span> {error}
+              </div>
+            )}
+
+            {/* 사용자명 입력 */}
+            <div className="mb-6">
+              <label 
+                htmlFor="username" 
+                className="block text-sm font-semibold text-gray-700 mb-2"
+                style={{ color: '#252528' }}
+              >
+                사용자명
+              </label>
+              <input
+                ref={usernameRef}
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                onKeyDown={handleUsernameKeyDown}
+                className="input"
+                placeholder="사용자명을 입력하세요"
+                required
+                disabled={isLoading}
+                aria-describedby="username-help"
+                aria-label="사용자명 입력 후 엔터를 누르면 비밀번호 입력란으로 이동합니다."
+                autoComplete="username"
+                tabIndex={1}
+              />
+              <div id="username-help" className="sr-only">
+                입력 후 엔터를 누르면 비밀번호 입력란으로 이동합니다.
+              </div>
+            </div>
+
+            {/* 비밀번호 입력 */}
+            <div className="mb-6">
+              <label 
+                htmlFor="password" 
+                className="block text-sm font-semibold text-gray-700 mb-2"
+                style={{ color: '#252528' }}
+              >
+                비밀번호
+              </label>
+              <div className="relative">
+                <input
+                  ref={passwordRef}
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={handlePasswordKeyDown}
+                  className="input pr-12"
+                  placeholder="비밀번호를 입력하세요"
+                  required
+                  disabled={isLoading}
+                  aria-describedby="password-help"
+                  aria-label="비밀번호 입력 후 엔터를 누르면 로그인됩니다."
+                  autoComplete="current-password"
+                  tabIndex={2}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-800 transition-colors duration-200 p-1"
+                  aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 보이기'}
+                  tabIndex={-1}
+                  disabled={isLoading}
+                >
+                  {showPassword ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+              <div id="password-help" className="sr-only">
+                비밀번호를 입력하세요. 입력 후 엔터를 누르면 로그인됩니다.
+              </div>
+            </div>
+
+            {/* 로그인 버튼 */}
+            <button
+              ref={submitRef}
+              type="submit"
+              className="btn w-full relative bg-primary-400 hover:bg-primary-500"
+              disabled={isLoading || !username.trim() || !password.trim()}
+              aria-describedby="login-button-help"
+              aria-label="로그인 버튼. 사용자명과 비밀번호를 입력한 후 클릭하거나 비밀번호 입력 후 엔터를 누르세요."
+              tabIndex={3}
+            >
+              {isLoading ? (
+                <div className="flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2" aria-hidden="true"></div>
+                  로그인 중...
+                </div>
+              ) : (
+                '로그인'
+              )}
+            </button>
+            <div id="login-button-help" className="sr-only">
+              사용자명과 비밀번호를 입력한 후 이 버튼을 클릭하여 로그인하세요. 또는 비밀번호 입력 후 엔터를 누르세요.
+            </div>
+          </form>
+        </div>
+
+      </div>
+    </div>
+  )
+}
+
+
+==================================================
+FILE PATH: src\components\MarkdownRenderer.tsx
+==================================================
+'use client'
+
+import React, { useState, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkBreaks from 'remark-breaks'
+import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import remarkEmoji from 'remark-emoji'
+import rehypeSanitize from 'rehype-sanitize'
+import rehypeKatex from 'rehype-katex'
+import rehypeSlug from 'rehype-slug'
+import rehypeAutolinkHeadings from 'rehype-autolink-headings'
+// @ts-ignore
+import rehypeRaw from 'rehype-raw'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useInView } from 'react-intersection-observer'
+import { Copy, Check, Sparkles, ChevronRight, ExternalLink, CheckSquare, Square, Circle, Minus } from 'lucide-react'
+import 'katex/dist/katex.min.css'
+
+interface MarkdownRendererProps {
+  content: string
+  className?: string
+  isAssistant?: boolean
+  animate?: boolean
+  theme?: 'dark' | 'light'
+  isStreaming?: boolean
+}
+
+// Typewriter effect component for animated text
+const TypewriterText: React.FC<{ text: string; speed?: number; className?: string }> = ({
+  text,
+  speed = 20,
+  className = ''
+}) => {
+  const [displayText, setDisplayText] = useState('')
+  const [currentIndex, setCurrentIndex] = useState(0)
+
+  useEffect(() => {
+    if (currentIndex < text.length) {
+      const timeout = setTimeout(() => {
+        setDisplayText(prev => prev + text[currentIndex])
+        setCurrentIndex(prev => prev + 1)
+      }, speed)
+      return () => clearTimeout(timeout)
+    }
+  }, [currentIndex, text, speed])
+
+  return <span className={className}>{displayText}</span>
+}
+
+// 조건부 애니메이션을 위한 헬퍼 함수
+const createConditionalComponent = (
+  animate: boolean,
+  isStreaming: boolean,
+  MotionComponent: any,
+  RegularComponent: any
+) => {
+  const shouldAnimate = animate && !isStreaming
+  return shouldAnimate ? MotionComponent : RegularComponent
+}
+
+// 조건부 props를 위한 헬퍼 함수  
+const getAnimationProps = (animate: boolean, isStreaming: boolean, animationProps: any) => {
+  const shouldAnimate = animate && !isStreaming
+  return shouldAnimate ? animationProps : {}
+}
+
+// Enhanced copy button with animations
+const CopyButton: React.FC<{ text: string; language: string }> = ({ text, language }) => {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error('복사 실패:', err)
+    }
+  }
+
+  return (
+    <motion.button
+      onClick={handleCopy}
+      className="flex items-center gap-2 px-3 py-1.5 bg-zinc-700/80 hover:bg-zinc-600/80 rounded-lg text-xs font-medium text-gray-200 transition-all duration-200 backdrop-blur-sm border border-zinc-600/30"
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+      aria-label={`${language} 코드 복사하기`}
+    >
+      <AnimatePresence mode="wait">
+        {copied ? (
+          <motion.div
+            key="check"
+            initial={{ scale: 0, opacity: 0, rotate: -180 }}
+            animate={{ scale: 1, opacity: 1, rotate: 0 }}
+            exit={{ scale: 0, opacity: 0, rotate: 180 }}
+            transition={{ type: "spring", duration: 0.3 }}
+            className="flex items-center gap-1.5 text-emerald-400"
+          >
+            <Check size={14} />
+            <span>복사됨!</span>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="copy"
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            className="flex items-center gap-1.5"
+          >
+            <Copy size={14} />
+            <span>복사</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.button>
+  )
+}
+
+export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
+  content,
+  className = '',
+  isAssistant = false,
+  animate = true,
+  isStreaming = false,
+}) => {
+  const [ref, inView] = useInView({
+    triggerOnce: true,
+    threshold: 0.1
+  })
+
+  const containerVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  }
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 10 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: 0.6
+      }
+    }
+  }
+  // 애니메이션 활성화 여부 결정
+  const shouldAnimate = animate && !isStreaming
+
+  return (
+    <motion.div
+      ref={ref}
+      className={`markdown-container relative ${className} ${isAssistant
+        ? 'bg-transparent border-none shadow-none'
+        : 'bg-gradient-to-br from-gray-900/60 to-gray-800/40'
+        } ${isAssistant ? '' : 'backdrop-blur-sm rounded-xl border shadow-lg border-gray-700/50'}`}
+      variants={shouldAnimate ? containerVariants : undefined}
+      initial={shouldAnimate ? "hidden" : undefined}
+      animate={shouldAnimate && inView ? "visible" : undefined}
+    >
+
+
+      {/* AI Badge for non-assistant messages only */}
+      {!isAssistant && (
+        <motion.div
+          className="flex items-center gap-2 px-4 py-2 border-b border-gray-700/50 bg-dark-800/30"
+          variants={shouldAnimate ? itemVariants : undefined}
+        >
+          <motion.div
+            animate={shouldAnimate ? { rotate: 360 } : undefined}
+            transition={shouldAnimate ? { duration: 8, repeat: Infinity, ease: "linear" } : undefined}
+          >
+            <Sparkles size={16} />
+          </motion.div>
+          <span className="text-sm font-medium text-gray-500">
+            Enhanced Markdown
+          </span>
+        </motion.div>
+      )}
+
+      <div className={`${isAssistant ? 'p-0' : 'p-6'} prose prose-invert prose-slate max-w-none ${isAssistant ? 'prose-assistant' : 'prose-user'
+        } prose-headings:scroll-mt-8 prose-pre:bg-transparent prose-pre:p-0`}>
+        <ReactMarkdown
+          remarkPlugins={[
+            remarkGfm,
+            remarkMath,
+            remarkEmoji,
+          ]}
+          rehypePlugins={[
+            rehypeRaw,
+            rehypeKatex,
+            rehypeSlug,
+            [rehypeAutolinkHeadings, { behavior: 'wrap' }],
+          ]}
+          components={{
+            // Enhanced code blocks with Gemini-style animations
+            code({ node, inline, className, children, ...props }: any) {
+              const match = /language-(\w+)/.exec(className || '')
+              const language = match ? match[1] : 'text'
+              const codeText = String(children).replace(/\n$/, '')
+
+              if (!inline && match) {
+                return (
+                  <motion.div
+                    className="code-block-wrapper relative group my-6"
+                    variants={shouldAnimate ? itemVariants : undefined}
+                    whileHover={shouldAnimate ? { scale: 1.01 } : undefined}
+                    transition={shouldAnimate ? { type: "spring", stiffness: 300 } : undefined}
+                  >
+                    {/* Enhanced header with gradient */}
+                    <div className="code-block-header flex items-center justify-between rounded-t-xl px-4 py-3 bg-gradient-to-r from-zinc-800 to-zinc-900 border-b border-gray-700/50 backdrop-blur-sm">
+                      <div className="flex items-center gap-3">
+                        <motion.span
+                          aria-hidden="true"
+                          className="language-label font-medium text-sm text-gray-500"
+                        >
+                          {language}
+                        </motion.span>
+                      </div>
+                      <CopyButton text={codeText} language={language} />
+                    </div>
+
+                    {/* Code content with enhanced styling */}
+                    <div className="relative overflow-hidden rounded-b-xl">
+                      <SyntaxHighlighter
+                        style={oneDark}
+                        language={language}
+                        PreTag="div"
+                        className="!mt-0 !mb-0 !rounded-none !border-0 !bg-transparent"
+                        showLineNumbers={true}
+                        wrapLines={true}
+                        lineNumberStyle={{
+                          minWidth: '3em',
+                          paddingRight: '1em',
+                          color: '#6B7280',
+                          backgroundColor: 'transparent',
+                          borderRight: `1px solid #374151`,
+                          marginRight: '1em'
+                        }}
+                        lineProps={{
+                          style: {
+                            wordBreak: 'break-all',
+                            whiteSpace: 'pre-wrap',
+                            backgroundColor: 'transparent'
+                          }
+                        }}
+                        {...props}
+                      >
+                        {codeText}
+                      </SyntaxHighlighter>
+                    </div>
+                  </motion.div>
+                )
+              } else {
+                return (
+                  <motion.code
+                    className={`${className} inline-code px-2 py-1 rounded-md text-sm font-mono bg-gray-100/70 text-gray-800 border border-gray-300/50 backdrop-blur-sm`}
+                    whileHover={shouldAnimate ? { scale: 1.05 } : undefined}
+                    transition={shouldAnimate ? { type: "spring", stiffness: 400 } : undefined}
+                    {...props}
+                  >
+                    {children}
+                  </motion.code>
+                )
+              }
+            },
+
+            // Animated headings
+            h1: ({ children, ...props }) => {
+              const { node, ...restProps } = props as any;
+              return (
+                <motion.h1
+                  className="group flex items-center gap-3 text-3xl font-bold mb-6 mt-8 pb-3 border-b text-white border-gray-700/50"
+                  variants={shouldAnimate ? itemVariants : undefined}
+                  whileHover={shouldAnimate ? { x: 5 } : undefined}
+                  {...restProps}
+                >
+                  <motion.div
+                    initial={shouldAnimate ? { rotate: 0 } : undefined}
+                    whileHover={shouldAnimate ? { rotate: 90 } : undefined}
+                    transition={shouldAnimate ? { type: "spring", stiffness: 300 } : undefined}
+                  >
+                    <ChevronRight size={24} />
+                  </motion.div>
+                  {shouldAnimate ? <TypewriterText text={String(children)} speed={30} /> : children}
+                </motion.h1>
+              );
+            },
+            h2: ({ children, ...props }) => {
+              const { node, ...restProps } = props as any;
+              return (
+                <motion.h2
+                  className="group flex items-center gap-2 text-2xl font-semibold mb-4 mt-6 text-gray-100"
+                  variants={shouldAnimate ? itemVariants : undefined}
+                  whileHover={shouldAnimate ? { x: 3 } : undefined}
+                  {...restProps}
+                >
+                  <motion.div
+                    className="w-1 h-6 rounded-full bg-primary-500"
+                    whileHover={shouldAnimate ? { scaleY: 1.2 } : undefined}
+                  />
+                  {children}
+                </motion.h2>
+              );
+            },
+            h3: ({ children, ...props }) => {
+              const { node, ...restProps } = props as any;
+              return (
+                <motion.h3
+                  className="text-xl font-medium mb-3 mt-5 text-gray-200"
+                  variants={shouldAnimate ? itemVariants : undefined}
+                  whileHover={shouldAnimate ? { x: 2 } : undefined}
+                  {...restProps}
+                >
+                  <span className="mr-2 text-gray-400">▸</span>
+                  {children}
+                </motion.h3>
+              );
+            },
+
+            // Blockquotes with animations
+            blockquote: ({ children, ...props }) => {
+              const { node, ...restProps } = props as any;
+              return (
+                <motion.blockquote
+                  className="relative border-l-4 border-gray-300 pl-4 pr-4 py-2 mt-0 mb-6 italic rounded-r-lg bg-gray-100 text-gray-700 backdrop-blur-sm"
+                  variants={shouldAnimate ? itemVariants : undefined}
+                  whileHover={shouldAnimate ? { scale: 1.02, x: 5 } : undefined}
+                  transition={shouldAnimate ? { type: "spring", stiffness: 300 } : undefined}
+                  {...restProps}
+                >
+                  {children}
+                </motion.blockquote>
+              );
+            },
+
+            // Gemini-style tables with enhanced animations
+            table: ({ children, ...props }) => {
+              const { node, ...restProps } = props as any;
+              return (
+                <motion.div
+                  className="table-wrapper overflow-x-auto my-6 rounded-xl shadow-2xl bg-gradient-to-br from-white/95 to-gray-50/95 border border-gray-200"
+                  variants={shouldAnimate ? itemVariants : undefined}
+                  whileHover={shouldAnimate ? { scale: 1.01 } : undefined}
+                  initial={shouldAnimate ? { opacity: 0, y: 20 } : undefined}
+                  animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
+                  transition={shouldAnimate ? { delay: 0.1 } : undefined}
+                >
+                  <motion.table
+                    className="min-w-full border-collapse"
+                    {...restProps}
+                  >
+                    {children}
+                  </motion.table>
+                </motion.div>
+              );
+            },
+            thead: ({ children, ...props }) => {
+              const { node, ...restProps } = props as any;
+              return (
+                <thead
+                  className="bg-gradient-to-r from-gray-100/90 to-gray-200/90"
+                  {...restProps}
+                >
+                  {children}
+                </thead>
+              );
+            },
+            tbody: ({ children, ...props }) => {
+              const { node, ...restProps } = props as any;
+              return (
+                <tbody {...restProps}>
+                  {children}
+                </tbody>
+              );
+            },
+            tr: ({ children, ...props }) => {
+              const { node, ...restProps } = props as any;
+              return (
+                <motion.tr
+                  className="transition-all duration-200"
+                  whileHover={shouldAnimate ? { backgroundColor: 'rgba(243, 244, 246, 0.8)' } : undefined}
+                  {...restProps}
+                >
+                  {children}
+                </motion.tr>
+              );
+            },
+            th: ({ children, ...props }) => {
+              const { node, ...restProps } = props as any;
+              return (
+                <motion.th
+                  className="px-6 py-4 text-left font-semibold border-b-2 text-gray-800 border-gray-300 bg-gray-50/80"
+                  whileHover={shouldAnimate ? {
+                    backgroundColor: '#f9fafb',
+                    scale: 1.01
+                  } : undefined}
+                  transition={shouldAnimate ? { duration: 0.2 } : undefined}
+                  {...restProps}
+                >
+                  {children}
+                </motion.th>
+              );
+            },
+            td: ({ children, ...props }) => {
+              const { node, ...restProps } = props as any;
+              return (
+                <motion.td
+                  className="px-6 py-4 border-b last:border-b-0 text-gray-700 border-gray-200 bg-white/30"
+                  whileHover={shouldAnimate ? {
+                    backgroundColor: '#f3f4f6',
+                    scale: 1.005,
+                    y: -1
+                  } : undefined}
+                  transition={shouldAnimate ? { duration: 0.2 } : undefined}
+                  {...restProps}
+                >
+                  {children}
+                </motion.td>
+              );
+            },
+
+            // Gemini-style animated lists
+            ul: ({ children, ...props }) => {
+              const { node, ...restProps } = props as any;
+              return (
+                <motion.ul
+                  className="space-y-3 my-6 text-gray-800"
+                  variants={shouldAnimate ? {
+                    hidden: { opacity: 0 },
+                    visible: {
+                      opacity: 1,
+                      transition: {
+                        staggerChildren: 0.1
+                      }
+                    }
+                  } : undefined}
+                  initial={shouldAnimate ? "hidden" : undefined}
+                  animate={shouldAnimate ? "visible" : undefined}
+                  {...restProps}
+                >
+                  {children}
+                </motion.ul>
+              );
+            },
+            ol: ({ children, ...props }) => {
+              const { node, ...restProps } = props as any;
+              return (
+                <motion.ol
+                  className="space-y-3 my-6 counter-reset-list text-gray-800"
+                  variants={shouldAnimate ? {
+                    hidden: { opacity: 0 },
+                    visible: {
+                      opacity: 1,
+                      transition: {
+                        staggerChildren: 0.1
+                      }
+                    }
+                  } : undefined}
+                  initial={shouldAnimate ? "hidden" : undefined}
+                  animate={shouldAnimate ? "visible" : undefined}
+                  {...restProps}
+                >
+                  {children}
+                </motion.ol>
+              );
+            },
+            li: ({ children, ...props }) => {
+              const { node, ...restProps } = props as any;
+
+              // Check if this is a task list item (checkbox)
+              const childrenArray = React.Children.toArray(children);
+              const firstChild = childrenArray[0];
+
+              let isTaskList = false;
+              let isChecked = false;
+              let taskListContent = children;
+
+              if (typeof firstChild === 'string') {
+                // Check for checkbox patterns
+                const checkboxMatch = firstChild.match(/^\s*\[([ xX])\]\s*(.*)$/);
+                if (checkboxMatch) {
+                  isTaskList = true;
+                  isChecked = checkboxMatch[1].toLowerCase() === 'x';
+                  taskListContent = checkboxMatch[2] + (childrenArray.slice(1).join('') || '');
+                }
+              }
+
+              if (isTaskList) {
+                return (
+                  <motion.li
+                    className="flex items-start gap-3 leading-relaxed p-3 rounded-lg transition-all duration-200 hover:bg-dark-800/30 border-l-2 border-transparent hover:border-green-400"
+                    variants={shouldAnimate ? {
+                      hidden: { opacity: 0, x: -20 },
+                      visible: { opacity: 1, x: 0 }
+                    } : undefined}
+                    whileHover={shouldAnimate ? { x: 5 } : undefined}
+                    {...restProps}
+                  >
+                    <motion.div
+                      className={`mt-0.5 flex-shrink-0 ${isChecked
+                        ? 'text-green-400'
+                        : 'text-dark-400'
+                        }`}
+                      whileHover={shouldAnimate ? { scale: 1.1 } : undefined}
+                      whileTap={shouldAnimate ? { scale: 0.9 } : undefined}
+                    >
+                      {isChecked ? (
+                        <CheckSquare size={18} />
+                      ) : (
+                        <Square size={18} />
+                      )}
+                    </motion.div>
+                    <span className={`flex-1 ${isChecked
+                      ? `line-through opacity-60 text-gray-500`
+                      : ''
+                      }`}>
+                      {taskListContent}
+                    </span>
+                  </motion.li>
+                );
+              }
+
+              // Regular list item
+              return (
+                <motion.li
+                  className="flex items-start gap-3 leading-relaxed p-3 rounded-lg transition-all duration-200 hover:bg-gray-200/30 border-l-2 border-transparent hover:border-gray-400"
+                  variants={shouldAnimate ? {
+                    hidden: { opacity: 0, x: -20 },
+                    visible: { opacity: 1, x: 0 }
+                  } : undefined}
+                  whileHover={shouldAnimate ? { x: 5 } : undefined}
+                  {...restProps}
+                >
+                  <motion.div
+                    className="mt-2 flex-shrink-0"
+                    whileHover={shouldAnimate ? { scale: 1.2, rotate: 180 } : undefined}
+                    transition={shouldAnimate ? { type: "spring", stiffness: 300 } : undefined}
+                  >
+                    <Circle size={6} />
+                  </motion.div>
+                  <span className="flex-1">{children}</span>
+                </motion.li>
+              );
+            },
+
+            // Gemini-style paragraphs with subtle animations
+            p: ({ children, ...props }) => {
+              const { node, ...restProps } = props as any;
+              return (
+                <motion.p
+                  className="leading-relaxed mb-6 last-mb-0 text-[#252528]"
+                  variants={shouldAnimate ? itemVariants : undefined}
+                  {...restProps}
+                >
+                  {children}
+                </motion.p>
+              );
+            },
+
+            // External links only
+            a: ({ children, href, ...props }) => {
+              const { node, ...restProps } = props as any;
+              const isExternal = href?.startsWith('http');
+
+              // Only render as link if external, otherwise render as plain text
+              if (!isExternal) {
+                return <span {...restProps}>{children}</span>;
+              }
+
+              return (
+                <motion.a
+                  href={href}
+                  className="inline-flex items-center gap-1 font-medium underline-offset-4 transition-all duration-200 text-blue-600 hover:text-blue-700 decoration-blue-600/50 hover:decoration-blue-700 hover:underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  whileHover={shouldAnimate ? { scale: 1.05 } : undefined}
+                  whileTap={shouldAnimate ? { scale: 0.95 } : undefined}
+                  {...restProps}
+                >
+                  {children}
+                  <motion.span
+                    initial={shouldAnimate ? { opacity: 0, scale: 0.8 } : undefined}
+                    animate={shouldAnimate ? { opacity: 1, scale: 1 } : undefined}
+                    transition={shouldAnimate ? { delay: 0.1 } : undefined}
+                  >
+                    <ExternalLink size={14} />
+                  </motion.span>
+                </motion.a>
+              );
+            },
+
+            // Enhanced text formatting
+            strong: ({ children, ...props }) => {
+              const { node, ...restProps } = props as any;
+              return (
+                <motion.strong
+                  className="font-semibold text-black"
+                  whileHover={shouldAnimate ? { scale: 1.05 } : undefined}
+                  {...restProps}
+                >
+                  {children}
+                </motion.strong>
+              );
+            },
+            em: ({ children, ...props }) => {
+              const { node, ...restProps } = props as any;
+              return (
+                <motion.em
+                  className="italic font-medium text-gray-800"
+                  whileHover={shouldAnimate ? { scale: 1.02 } : undefined}
+                  {...restProps}
+                >
+                  {children}
+                </motion.em>
+              );
+            },
+
+            // Enhanced images with lazy loading and animations
+            img: ({ src, alt, title, ...props }) => {
+              const { node, ...restProps } = props as any;
+              return (
+                <motion.div
+                  className="my-6 overflow-hidden rounded-xl"
+                  variants={shouldAnimate ? itemVariants : undefined}
+                  whileHover={shouldAnimate ? { scale: 1.02 } : undefined}
+                  transition={shouldAnimate ? { type: "spring", stiffness: 300 } : undefined}
+                >
+                  <motion.img
+                    src={src}
+                    alt={alt}
+                    title={title}
+                    className={`w-full h-auto rounded-xl shadow-lg border border-gray-300/50`}
+                    loading="lazy"
+                    initial={shouldAnimate ? { opacity: 0, scale: 0.9 } : undefined}
+                    animate={shouldAnimate ? { opacity: 1, scale: 1 } : undefined}
+                    transition={shouldAnimate ? { duration: 0.5 } : undefined}
+                    {...restProps}
+                  />
+                  {(alt || title) && (
+                    <motion.p
+                      className={`text-center text-sm mt-2 italic text-gray-500`}
+                      initial={shouldAnimate ? { opacity: 0 } : undefined}
+                      animate={shouldAnimate ? { opacity: 1 } : undefined}
+                      transition={shouldAnimate ? { delay: 0.3 } : undefined}
+                    >
+                      {title || alt}
+                    </motion.p>
+                  )}
+                </motion.div>
+              );
+            },
+
+            // Enhanced line breaks
+            br: ({ ...props }) => {
+              const { node, ...restProps } = props as any;
+              return (
+                <motion.div
+                  className="my-2"
+                  initial={shouldAnimate ? { opacity: 0, scaleX: 0 } : undefined}
+                  animate={shouldAnimate ? { opacity: 1, scaleX: 1 } : undefined}
+                  transition={shouldAnimate ? { duration: 0.3 } : undefined}
+                  {...restProps}
+                />
+              );
+            },
+
+            // Minimal horizontal rule
+            hr: ({ ...props }) => {
+              const { node, ...restProps } = props as any;
+              return (
+                <motion.div
+                  className="my-6"
+                  variants={shouldAnimate ? itemVariants : undefined}
+                  {...restProps}
+                >
+                  <motion.div
+                    className="h-px w-full bg-gray-300"
+                    initial={shouldAnimate ? { scaleX: 0 } : undefined}
+                    animate={shouldAnimate ? { scaleX: 1 } : undefined}
+                    transition={shouldAnimate ? { duration: 0.3 } : undefined}
+                  />
+                </motion.div>
+              );
+            },
+          }}
+        >
+          {content}
+        </ReactMarkdown>
+      </div>
+
+      {/* Gemini-style subtle footer - only for non-assistant messages */}
+      {!isAssistant && (
+        <motion.div
+          className="px-6 py-3 border-t text-center text-xs border-gray-300/50 text-gray-500"
+          variants={shouldAnimate ? itemVariants : undefined}
+        >
+          <div className="flex items-center justify-center gap-2">
+            <Sparkles size={12} />
+            <span>Enhanced with AI-powered formatting</span>
+          </div>
+        </motion.div>
+      )}
+    </motion.div>
+  )
+}
+
+export default MarkdownRenderer
+
+
+==================================================
+FILE PATH: src\components\Sidebar.tsx
+==================================================
+'use client';
+
+import React, { useState } from 'react';
+
+interface ChatSession {
+  id: string;
+  title: string;
+  timestamp: Date;
+  lastMessage: string;
+}
+
+interface SidebarProps {
+  isOpen: boolean;
+  onToggle: () => void;
+  chatSessions: ChatSession[];
+  currentSessionId: string | null;
+  onSessionSelect: (sessionId: string) => void;
+  onNewChat: () => void;
+  onSessionDelete: (sessionId: string) => void;
+  onHoverChange?: (isHovered: boolean) => void;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({
+  isOpen,
+  onToggle,
+  chatSessions,
+  currentSessionId,
+  onSessionSelect,
+  onNewChat,
+  onSessionDelete,
+  onHoverChange,
+}) => {
+  const [isHovered, setIsHovered] = useState(false);
+  
+  // 실제로 표시되는 열림 상태 (클릭으로 열린 상태 또는 호버 상태)
+  const isDisplayOpen = isOpen || isHovered;
+  
+  // 호버 상태 변경 시 상위 컴포넌트에 알림
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+    onHoverChange?.(true);
+  };
+  
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+    onHoverChange?.(false);
+  };
+  
+  const formatDate = (date: Date) => {
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    
+    if (days === 0) {
+      return '오늘';
+    } else if (days === 1) {
+      return '어제';
+    } else if (days < 7) {
+      return `${days}일 전`;
+    } else {
+      return date.toLocaleDateString('ko-KR', { 
+        month: 'short', 
+        day: 'numeric' 
+      });
+    }
+  };
+
+  const truncateText = (text: string, maxLength: number = 50) => {
+    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+  };
+
+  return (
+    <>
+      {/* 오버레이 (모바일에서 사이드바가 열릴 때) */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+          onClick={onToggle}
+          role="button"
+          aria-label="사이드바 닫기"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onToggle();
+            }
+          }}
+        />
+      )}
+
+      {/* 사이드바 */}
+      <aside
+        id="sidebar-content"
+        className={`fixed top-0 left-0 h-full bg-dark-850 border-r border-dark-800 z-50 transform transition-transform duration-300 ease-in-out w-80 flex flex-col ${
+          isDisplayOpen ? 'translate-x-0' : '-translate-x-[calc(100%-56px)]'
+        }`}
+        style={{ backgroundColor: '#FBFBFB', borderColor: '#e0e0e0' }}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        role="complementary"
+        aria-label="대화 기록 사이드바"
+        aria-expanded={isDisplayOpen}
+        aria-hidden={!isOpen}
+      >
+        {/* 헤더 */}
+        <header className="flex items-center justify-between p-4 h-[65px]" role="banner">
+          <h2 
+            className={`text-lg font-semibold text-dark-100 transition-opacity duration-200 ${isDisplayOpen ? 'opacity-100' : 'opacity-0'}`}
+            style={{ color: '#252528' }}
+            role="heading"
+            aria-level={2}
+            id="sidebar-title"
+          >
+            대화 기록
+          </h2>
+          <button
+            onClick={onNewChat}
+            className={`p-2 rounded-lg text-dark-300 hover:bg-dark-700 hover:text-dark-100 transition-all duration-200 ${isDisplayOpen ? 'opacity-100' : 'opacity-0'}`}
+            style={{ color: '#252528' }}
+            title="새 대화 시작"
+            aria-label="새 대화 시작하기"
+            tabIndex={isOpen ? 0 : -1}
+            role="button"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+          </button>
+        </header>
+
+        {/* 대화 목록 */}
+        <nav 
+          className="flex-grow overflow-y-auto custom-scrollbar min-h-0"
+          style={{
+            // Firefox 스크롤바 스타일
+            scrollbarWidth: 'thin',
+            scrollbarColor: '#bfbfbf #f2f2f2', // thumb track - light theme
+          }}
+          aria-label="대화 기록"
+          tabIndex={isOpen ? 0 : -1}
+        >
+          {chatSessions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center text-dark-500 p-4" style={{ color: '#a6a6a6' }}>
+              <svg
+                className="w-12 h-12 mx-auto mb-3 text-gray-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                role="img"
+                aria-label="빈 대화 아이콘"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.013 8.013 0 01-7-4c0-4.418 3.582-8 8-8s8 3.582 8 8z"
+                />
+              </svg>
+              <p className="text-sm" role="text">아직 대화가 없습니다</p>
+              <p className="text-xs text-gray-400 mt-1" role="text">새 대화를 시작해보세요</p>
+            </div>
+          ) : (
+            <ul className="p-2 space-y-1" role="list" aria-label={`총 ${chatSessions.length}개의 대화 세션`}>
+              {chatSessions.map((session, index) => (
+                <li key={session.id} role="listitem" className="group relative border-b border-dark-800 last:border-b-0" style={{ borderColor: '#e0e0e0' }}>
+                  <button
+                    onClick={() => onSessionSelect(session.id)}
+                    className={`w-full text-left p-4 rounded-lg transition-colors ${
+                      currentSessionId === session.id
+                        ? 'bg-dark-800 cursor-default'
+                        : 'hover:bg-dark-800/50 cursor-pointer'
+                    }`}
+                    style={{ backgroundColor: currentSessionId === session.id ? '#f2f2f2' : 'transparent' }}
+                    aria-label={`대화 세션 ${index + 1}: ${session.title}, 마지막 메시지: ${session.lastMessage ? truncateText(session.lastMessage, 30) : '없음'}, ${formatDate(session.timestamp)}`}
+                    aria-current={currentSessionId === session.id ? 'page' : undefined}
+                    tabIndex={isOpen ? 0 : -1}
+                    role="button"
+                  >
+                    <h3 
+                      className="font-semibold text-dark-100 text-sm mb-2 truncate"
+                      style={{ color: '#252528' }}
+                      role="heading"
+                      aria-level={3}
+                    >
+                      {session.title}
+                    </h3>
+                    <p className="text-xs text-dark-400 mb-3 truncate" role="text" style={{ color: '#a6a6a6' }}>
+                      {session.lastMessage && truncateText(session.lastMessage)}
+                    </p>
+                    <time 
+                      className="text-xs text-dark-500"
+                      style={{ color: '#a6a6a6' }}
+                      dateTime={session.timestamp.toISOString()}
+                      aria-label={`대화 시간: ${formatDate(session.timestamp)}`}
+                    >
+                      {formatDate(session.timestamp)}
+                    </time>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm(`'${session.title}' 대화를 정말 삭제하시겠습니까?`)) {
+                        onSessionDelete(session.id);
+                      }
+                    }}
+                    className="absolute top-3 right-3 p-1 rounded-full text-dark-500 hover:bg-dark-700 hover:text-dark-100 opacity-0 group-hover:opacity-100 transition-opacity"
+                    style={{ color: '#a6a6a6' }}
+                    aria-label={`'${session.title}' 대화 삭제`}
+                    tabIndex={isOpen ? 0 : -1}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </nav>
+
+        {/* 푸터 (설정 등) */}
+        <footer 
+          className={`p-4 border-t border-dark-800 transition-opacity duration-200 ${isDisplayOpen ? 'opacity-100' : 'opacity-0'}`}
+          style={{ borderColor: '#e0e0e0' }}
+          role="contentinfo"
+        >
+          <div 
+            className="text-xs text-dark-400 text-center"
+            style={{ color: '#a6a6a6' }}
+            role="text"
+            aria-label="앱 정보: Sapie Braille Assistant"
+          >
+            Sapie Braille Assistant
+          </div>
+        </footer>
+      </aside>
+      
+      {/* 사이드바 토글 버튼 */}
+      <button
+        onClick={onToggle}
+        className="fixed top-1/2 -translate-y-1/2 left-[56px] z-[60] p-2 bg-dark-800 text-dark-300 hover:bg-dark-700 rounded-full border border-dark-700 shadow-lg transition-transform duration-300 ease-in-out"
+        style={{ backgroundColor: '#FBFBFB', color: '#252528', borderColor: '#e0e0e0', transform: `translateX(${isDisplayOpen ? '264px' : '0px'})` }}
+        aria-label={isOpen ? "사이드바 닫기" : "사이드바 열기"}
+        aria-expanded={isOpen}
+        aria-controls="sidebar-content"
+        tabIndex={0}
+        role="button"
+      >
+        <svg
+          className={`w-5 h-5 transition-transform duration-300 ${isDisplayOpen ? '' : 'rotate-180'}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M15 19l-7-7 7-7"
+          />
+        </svg>
+      </button>
+    </>
+  );
+};
+
+export default Sidebar;
+
+
+==================================================
+FILE PATH: src\components\SpacebarIndicator.tsx
+==================================================
+import React from 'react'
+
+interface SpacebarIndicatorProps {
+  isHolding: boolean
+  isRecording: boolean
+  holdProgress: number
+  waitingForSecondClick?: boolean
+  mode?: 'hold' | 'double-tap'
+}
+
+// 원형 프로그레스바 컴포넌트
+const CircularProgress: React.FC<{ progress: number; size: number; color: 'orange' | 'teal' }> = ({ progress, size, color }) => {
+  const strokeWidth = 8
+  const radius = (size - strokeWidth) / 2
+  const circumference = radius * 2 * Math.PI
+  const offset = circumference - (progress / 100) * circumference
+
+  const strokeColorUrl = color === 'orange' ? 'url(#orangeGradient)' : 'url(#tealGradient)'
+  const bgColor = color === 'orange' ? 'rgba(251, 146, 60, 0.2)' : 'rgba(45, 212, 191, 0.2)'
+
+  return (
+    <div className="absolute inset-0 flex items-center justify-center">
+      <svg
+        className="transform -rotate-90"
+        width={size}
+        height={size}
+        role="img"
+        aria-label={`녹음 진행률 ${progress.toFixed(0)}퍼센트`}
+        aria-hidden="false"
+      >
+        {/* 배경 원 */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={bgColor}
+          strokeWidth={strokeWidth}
+          fill="transparent"
+        />
+        {/* 진행률 원 */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={strokeColorUrl}
+          strokeWidth={strokeWidth}
+          fill="transparent"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          className="transition-all duration-150 ease-linear drop-shadow-lg"
+        />
+        {/* 그라디언트 정의 */}
+        <defs>
+          <linearGradient id="orangeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#fb923c" />
+            <stop offset="50%" stopColor="#f97316" />
+            <stop offset="100%" stopColor="#ea580c" />
+          </linearGradient>
+          <linearGradient id="tealGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#5eead4" /> 
+            <stop offset="50%" stopColor="#2dd4bf" /> 
+            <stop offset="100%" stopColor="#06b6d4" /> 
+          </linearGradient>
+        </defs>
+      </svg>
+    </div>
+  )
+}
+
+export const SpacebarIndicator: React.FC<SpacebarIndicatorProps> = ({
+  isHolding,
+  isRecording,
+  holdProgress,
+  waitingForSecondClick = false,
+  mode = 'hold'
+}) => {
+  // 한 번만 눌렀을 때(waitingForSecondClick)는 UI 표시 안 함
+  if (!isHolding && !isRecording) {
+    return null
+  }
+
+  const progress = isRecording ? 100 : (waitingForSecondClick ? 25 : holdProgress)
+
+  return (
+    <div 
+      className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="false"
+      aria-label="음성 녹음 상태 표시"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      <div className="flex flex-col items-center transition-opacity duration-300">
+        {/* 프로그레스바 컨테이너 */}
+        <div className="relative w-48 h-48" role="progressbar" aria-label="녹음 진행 상태">
+          <CircularProgress 
+            progress={progress} 
+            size={192} 
+            color={'orange'} 
+          />
+          
+          {/* 중앙 콘텐츠 */}
+          <div className={`absolute inset-0 rounded-full flex items-center justify-center backdrop-blur-sm transition-all duration-300
+            bg-gradient-to-br from-orange-300/20 to-amber-400/20 shadow-2xl shadow-orange-400/20`
+          }>
+            <div className="flex flex-col items-center">
+              
+              {isRecording ? (
+                <div 
+                  className="text-white text-2xl font-bold animate-pulse"
+                  role="status"
+                  aria-label="현재 음성 녹음 중"
+                >
+                  녹음 중
+                </div>
+              ) : waitingForSecondClick ? (
+                <div 
+                  className="text-white text-lg font-bold animate-pulse"
+                  role="status"
+                  aria-label="두 번째 클릭 대기 중"
+                >
+                  한 번 더 클릭
+                </div>
+              ) : (
+                <div 
+                  className="text-white text-3xl font-bold"
+                >
+                  {Math.round(holdProgress)}%
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        
+        {/* 하단 안내 텍스트 */}
+        <p
+          className="text-white text-md mt-6 px-6 py-3 rounded-full border border-white/10 shadow-lg font-semibold transition-all duration-300 bg-black/10 backdrop-blur-md"
+          role="status"
+          aria-live="polite"
+          aria-label={isRecording ? '음성 녹음 중' : '녹음 준비 중'}
+        >
+          {isRecording 
+            ? '스페이스바를 다시 두 번 눌러 종료하세요'
+            : '스페이스바를 두 번 연속 누르세요'
+          }
+        </p>
+      </div>
+    </div>
+  )
+}
+
+
+==================================================
+FILE PATH: src\components\WelcomeScreen.tsx
+==================================================
+import React, { useEffect } from 'react';
+import { AgentType } from '@/hooks/useAgentSelection';
+
+interface WelcomeScreenProps {
+  micPermissionGranted?: boolean | null;
+  username?: string;
+  selectedAgentId: number;
+  isAgentSelected: boolean;
+  onAgentSelect: (agentId: number) => void;
+  agents: Record<number, AgentType>;
+}
+
+export const WelcomeScreen = ({ 
+  micPermissionGranted, 
+  username, 
+  selectedAgentId, 
+  isAgentSelected, 
+  onAgentSelect, 
+  agents 
+}: WelcomeScreenProps) => {
+
+  const handleAgentClick = (agentId: number) => {
+    // 입력 검증
+    if (typeof agentId !== 'number' || agentId < 0) {
+      console.error('Invalid agentId in handleAgentClick:', agentId);
+      return;
+    }
+
+    // 에이전트 존재 여부 확인
+    if (!(agentId in agents)) {
+      console.error('Agent not found:', agentId);
+      return;
+    }
+
+    try {
+      onAgentSelect(agentId);
+    } catch (error) {
+      console.error('Error selecting agent:', error);
+    }
+  };
+  return (
+    <div id="welcome-main" className="welcome-screen" role="main" aria-label="시각장애인을 위한 AI 어시스턴트 홈">
+      <p className="welcome-title text-5xl font-bold mb-10" role="heading" aria-level={1}>
+        {/* 안녕하세요, {username || 'Hyeonchan'} */}
+        안녕하세요, {'Sapie'}
+      </p>
+      <p className="welcome-subtitle text-2xl" role="text">
+        시각장애인을 위한 Sapie-Braille입니다. <br />음성으로 말씀하시거나 텍스트로 입력하세요.
+      </p>
+      <div className="mt-1 mb-20" role="region" aria-labelledby="keyboard-shortcuts">
+        <h2 id="keyboard-shortcuts" className="sr-only">키보드 단축키 안내</h2>
+        <div className="space-y-3" role="list" aria-label="사용 가능한 키보드 단축키 목록">
+          <div className="text-primary-400 text-lg font-semibold" role="listitem">
+            <kbd className="px-2 py-1 bg-dark-800 rounded text-sm mr-2" aria-label="스페이스 키">space</kbd>
+            <span aria-hidden="true">+</span>
+            <kbd className="px-2 py-1 bg-dark-800 rounded text-sm mx-2" aria-label="스페이스 키">space</kbd>
+            <span className="ml-2">음성 녹음 시작/종료</span>
+          </div>
+          <div className="text-primary-400 text-lg font-semibold" role="listitem">
+            <kbd className="px-2 py-1 bg-dark-800 rounded text-sm mr-2" aria-label="컨트롤 키">Ctrl</kbd>
+            <span aria-hidden="true">+</span>
+            <kbd className="px-2 py-1 bg-dark-800 rounded text-sm mx-2" aria-label="O 키">O</kbd>
+            <span className="ml-2">파일 탐색기 실행</span>
+          </div>
+          <div className="text-primary-400 text-lg font-semibold" role="listitem">
+            <kbd className="px-2 py-1 bg-dark-800 rounded text-sm mr-2" aria-label="컨트롤 키">Ctrl</kbd>
+            <span aria-hidden="true">+</span>
+            <kbd className="px-2 py-1 bg-dark-800 rounded text-sm mx-2" aria-label="R 키">R</kbd>
+            <span className="ml-2">텍스트 음성 재생</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 마이크 권한 상태 표시 (필요시 활성화)
+      <div className="mt-6 text-center">
+        {micPermissionGranted === null && (
+          <p className="text-sm text-gray-400 animate-pulse">마이크 권한을 확인 중입니다...</p>
+        )}
+        {micPermissionGranted === true && (
+          <p className="text-sm text-green-400">✅ 마이크가 준비되었습니다.</p>
+        )}
+        {micPermissionGranted === false && (
+          <p className="text-sm text-red-400">⚠️ 마이크 권한이 거부되었습니다. 브라우저 설정에서 허용해주세요.</p>
+        )}
+      </div> */}
+
+      <div className="quick-actions" role="group" aria-label="AI 어시스턴트 모드 선택" aria-describedby="quick-actions-help">
+        <div id="quick-actions-help" className="sr-only">
+          다음 AI 어시스턴트 모드 중 하나를 선택하여 대화를 시작할 수 있습니다. 키보드의 Tab 키로 이동하고 Enter 키 또는 스페이스바로 선택하세요. 
+          {isAgentSelected && `현재 선택된 모드: ${agents[selectedAgentId]?.name} - ${agents[selectedAgentId]?.description}`}
+        </div>
+        
+        {/* 일반 대화 모드 (0번) 제외하고 1, 2, 3번 Agent만 표시 */}
+        {Object.values(agents)
+          .filter(agent => agent.id !== 0)
+          .map((agent) => (
+            <button
+              key={agent.id}
+              className={`quick-action-btn ${
+                isAgentSelected && selectedAgentId === agent.id
+                  ? 'selected'
+                  : ''
+              }`}
+              onClick={() => handleAgentClick(agent.id)}
+              onKeyDown={(e) => {
+                // 스페이스바와 엔터키 모두 지원
+                if (e.key === ' ' || e.key === 'Enter') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleAgentClick(agent.id);
+                }
+                // Escape 키로 선택 해제 (선택된 상태에서만)
+                else if (e.key === 'Escape' && isAgentSelected && selectedAgentId === agent.id) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleAgentClick(agent.id); // 토글 방식이므로 같은 함수 호출
+                }
+              }}
+              aria-label={`${agent.name} 모드 선택하기 - ${agent.description}. ${selectedAgentId === agent.id && isAgentSelected ? '현재 선택됨' : ''}`}
+              aria-pressed={selectedAgentId === agent.id && isAgentSelected}
+              aria-describedby={`agent-${agent.id}-desc`}
+              role="button"
+              tabIndex={0}
+            >
+              <span aria-hidden="true" role="img" aria-label={`${agent.name} 아이콘`}>{agent.symbol}</span> 
+              <span>{agent.name}</span>
+              <div id={`agent-${agent.id}-desc`} className="sr-only">
+                {agent.description}
+                {selectedAgentId === agent.id && isAgentSelected && ' (현재 선택된 모드)'}
+              </div>
+            </button>
+          ))}
+      </div>
+
+    </div>
+  );
+};  
+
+
+==================================================
+FILE PATH: src\utils\fileUtils.tsx
+==================================================
+import React from 'react';
+
+// 파일 타입별 접근성 설명
+export const getFileTypeDescription = (fileType: string): string => {
+  if (fileType.startsWith('image/')) {
+    return '이미지 파일';
+  }
+  if (fileType.startsWith('audio/')) {
+    return '오디오 파일';
+  }
+  if (fileType.startsWith('video/')) {
+    return '비디오 파일';
+  }
+  if (fileType === 'application/pdf') {
+    return 'PDF 문서';
+  }
+  if (fileType.startsWith('text/')) {
+    return '텍스트 파일';
+  }
+  if (fileType.includes('document') || fileType.includes('word')) {
+    return '워드 문서';
+  }
+  if (fileType.includes('spreadsheet') || fileType.includes('excel')) {
+    return '엑셀 파일';
+  }
+  if (fileType.includes('presentation') || fileType.includes('powerpoint')) {
+    return '파워포인트 파일';
+  }
+  return '일반 파일';
+};
+
+export const getFileIcon = (fileType: string, fileName?: string): React.ReactElement => {
+  const description = getFileTypeDescription(fileType);
+  const fileLabel = fileName ? `${description}: ${fileName}` : description;
+  
+  if (fileType.startsWith('image/')) {
+    return (
+      <svg 
+        className="w-4 h-4" 
+        fill="none" 
+        viewBox="0 0 24 24" 
+        stroke="currentColor"
+        role="img"
+        aria-label={fileLabel}
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+    );
+  }
+  if (fileType.startsWith('audio/')) {
+    return (
+      <svg 
+        className="w-4 h-4" 
+        fill="none" 
+        viewBox="0 0 24 24" 
+        stroke="currentColor"
+        role="img"
+        aria-label={fileLabel}
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z" />
+      </svg>
+    );
+  }
+  if (fileType === 'application/pdf' || fileType.startsWith('text/')) {
+    return (
+      <svg 
+        className="w-4 h-4" 
+        fill="none" 
+        viewBox="0 0 24 24" 
+        stroke="currentColor"
+        role="img"
+        aria-label={fileLabel}
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    );
+  }
+  return (
+    <svg 
+      className="w-4 h-4" 
+      fill="none" 
+      viewBox="0 0 24 24" 
+      stroke="currentColor"
+      role="img"
+      aria-label={fileLabel}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 4 0 108.486 8.486L20.5 13" />
+    </svg>
+  );
+};
+
+// 접근성을 위한 파일 아이콘 (전용)
+export const getAccessibleFileIcon = (fileType: string, fileName: string): React.ReactElement => {
+  return getFileIcon(fileType, fileName);
+};
+
+export const getDifyFileType = (mimeType: string): string => {
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('audio/')) return 'audio';
+  if (mimeType.startsWith('video/')) return 'video';
+  
+  const docMimeTypes = [
+    'application/pdf', 'text/plain', 'text/markdown', 'text/csv',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
+    'application/vnd.ms-excel', // xls
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // docx
+    'application/msword', // doc
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation', // pptx
+    'application/vnd.ms-powerpoint', // ppt
+    'text/html', 'application/xml', 'application/epub+zip', 'message/rfc822'
+  ];
+  if (docMimeTypes.includes(mimeType)) return 'document';
+
+  return 'custom';
+};
+
+
