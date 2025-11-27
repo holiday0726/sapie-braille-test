@@ -11,10 +11,15 @@ export const getApiUrl = (): string => {
     return process.env.NEXT_PUBLIC_API_URL;
   }
 
-  // 2. 운영 환경 (NODE_ENV=production 또는 npm run build)
+  // // 2. 운영 환경 (NODE_ENV=production 또는 npm run build)
+  // if (process.env.NODE_ENV === 'production') {
+  //   // Vercel에 배포된 환경 또는 운영 환경
+  //   return 'https://braile-service.sapie.ai';
+  // }
+  // ✅ 수정 후 (이걸로 교체!)
   if (process.env.NODE_ENV === 'production') {
-    // Vercel에 배포된 환경 또는 운영 환경
-    return 'https://braile-service.sapie.ai';
+      // http://3.34.113.162 (뒤에 슬래시 없음, s 없음)
+      return 'http://13.209.139.144'; 
   }
 
   // 3. 개발 환경 (npm run dev) 및 기타 모든 경우
