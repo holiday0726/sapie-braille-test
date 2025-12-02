@@ -54,7 +54,7 @@ export const AGENTS: Record<number, AgentType> = {
     id: 7,
     name: '전국 장애인 공공시설',
     symbol: '◎',
-    description: '과천 근처에 승강기 있는 시설 있어? '
+    description: '성내동 장애인 시설 알려줘'
   },
   8: {
     id: 8,
