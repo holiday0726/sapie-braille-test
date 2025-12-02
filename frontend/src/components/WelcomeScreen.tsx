@@ -219,7 +219,7 @@ export const WelcomeScreen = ({
 
       {/* --- [수정 2] 에이전트 카드 (크기 확대, 흰색 배경 디자인) --- */}
       <div 
-        className="grid grid-cols-3 gap-8 w-full max-w-6xl px-4" 
+        className="grid grid-cols-3 gap-4 w-full max-w-5xl px-2"
         role="group" 
         aria-label="AI 어시스턴트 모드 선택" 
       >
@@ -230,11 +230,11 @@ export const WelcomeScreen = ({
               key={agent.id}
               className={`
                 flex flex-col items-center justify-center
-                /* ▼ 변경: aspect-square를 넣어 정사각형으로 만듦 */
-                aspect-square w-full p-8 rounded-3xl border-2 transition-all duration-200
-                hover:shadow-xl hover:-translate-y-1
+                /* 🔽 aspect-square 제거 + 패딩 줄이기 + 모서리/테두리 살짝 축소 */
+                w-full max-w-xs p-4 md:p-5 rounded-2xl border transition-all duration-200
+                hover:shadow-md hover:-translate-y-0.5
                 ${isAgentSelected && selectedAgentId === agent.id
-                  ? 'bg-orange-50 border-orange-500 ring-4 ring-orange-200 text-orange-700' 
+                  ? 'bg-orange-50 border-orange-500 ring-2 ring-orange-200 text-orange-700'
                   : 'bg-white border-gray-200 text-gray-700 hover:border-gray-400 hover:bg-gray-50'
                 }
               `}
@@ -254,17 +254,17 @@ export const WelcomeScreen = ({
               {/* ▼ 변경: 아이콘과 제목을 감싸는 가로(row) 컨테이너 추가 */}
               <div className="flex items-center gap-4 mb-4">
                 {/* 아이콘 */}
-                <span className="text-1xl filter drop-shadow-sm leading-none" aria-hidden="true" role="img">
+                <span className="text-base filter drop-shadow-sm leading-none" aria-hidden="true" role="img">
                   {agent.symbol}
                 </span>
                 {/* 제목 */}
-                <span className="text-3xl font-bold tracking-tight leading-none">
+                <span className="text-lg font-bold tracking-tight leading-none">
                   {agent.name}
                 </span>
               </div>
               
               {/* 설명 (아래쪽에 배치) */}
-              <span className={`text-lg text-center line-clamp-2 font-medium ${
+              <span className={`text-xs text-center line-clamp-2 font-medium ${
                 isAgentSelected && selectedAgentId === agent.id ? 'text-orange-600' : 'text-gray-500'
               }`}>
                 {agent.description}

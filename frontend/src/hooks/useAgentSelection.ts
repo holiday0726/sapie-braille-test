@@ -14,36 +14,54 @@ export const AGENTS: Record<number, AgentType> = {
     symbol: '◯',
     description: '일반적인 질문과 대화'
   },
-  1: {
-    id: 1,
-    name: '점역 변환',
-    symbol: '○',
-    description: '한글 텍스트를 점자로 변환'
-  },
+  // 1: {
+  //   id: 1,
+  //   name: '점역 변환',
+  //   symbol: '○',
+  //   description: '한글 텍스트를 점자로 변환'
+  // },
   2: {
     id: 2,
     name: '뉴스 읽기',
     symbol: '◇',
-    description: '최신 뉴스 읽어주기'
+    description: '오늘의 이슈는 뭐가 있어?'
   },
   3: {
     id: 3,
     name: '복지 정보',
     symbol: '□',
-    description: '복지 제도 및 지원 정보'
+    description: '최근 복지가 뭐 있어?'
   },
   4: {
     id: 4,
     name: '날씨 정보',
     symbol: '◎',
-    description: '현재 날씨 및 날씨 예보 정보'
+    description: '현재 날씨 및 날씨 예보 정보 알려줘'
   },
-  5: {
-    id: 5,
-    name: '문서 변환',
-    symbol: '◈',
-    description: '문서 파일을 분석하고 변환'
-  }
+  // 5: {
+  //   id: 5,
+  //   name: '문서 변환',
+  //   symbol: '◈',
+  //   description: '문서 파일을 분석하고 변환'
+  // },
+  6: {
+    id: 6,
+    name: '충북 장애인 단체',
+    symbol: '◎',
+    description: '장애인 단체 현황에 대해 알려줘'
+  },
+  7: {
+    id: 7,
+    name: '전국 장애인 공공시설',
+    symbol: '◎',
+    description: '과천 근처에 승강기 있는 시설 있어? '
+  },
+  8: {
+    id: 8,
+    name: '장애인 취업 도우미',
+    symbol: '◎',
+    description: '장애인 취업 정보 알려줄래?'
+  },
 };
 
 export const useAgentSelection = () => {
