@@ -887,7 +887,7 @@ kbd {
 .custom-scrollbar {
   /* Firefox 스크롤바 스타일 (이미 인라인으로 적용됨) */
   scrollbar-width: thin;
-  scrollbar-color: #3f3f46 #27272a; /* thumb track - 순수한 다크 그레이 */
+  scrollbar-color: #a1a1aa #a1a1aa; /* thumb track - 순수한 다크 그레이 */
 }
 
 /* WebKit 브라우저 (Chrome, Safari, Edge) 스크롤바 스타일 */
@@ -896,23 +896,23 @@ kbd {
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #27272a; /* zinc-800 - 순수한 어두운 회색 */
+  background: #a1a1aa; /* zinc-800 - 순수한 어두운 회색 */
   border-radius: 4px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #3f3f46; /* zinc-700 - 순수한 회색 */
+  background: #d4d4d8;          /* 밝은 회색 thumb */
   border-radius: 4px;
-  border: 1px solid #27272a; /* zinc-800 */
-  min-height: 20px; /* 접근성을 위한 최소 높이 */
+  border: 1px solid #e5e7eb;    /* 경계선도 연한 회색 */
+  min-height: 20px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #52525b; /* zinc-600 - 순수한 밝은 회색 */
+  background: #a1a1aa; /* zinc-600 - 순수한 밝은 회색 */
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:active {
-  background: #71717a; /* zinc-500 - 더 밝은 순수한 회색 */
+  background: #a1a1aa; /* zinc-500 - 더 밝은 순수한 회색 */
 }
 
 /* 고대비 모드에서 스크롤바 가시성 향상 */
@@ -920,12 +920,12 @@ kbd {
   .custom-scrollbar {
     scrollbar-color: #a1a1aa #3f3f46; /* 더 높은 대비 - 순수한 다크 그레이 */
   }
-  
+
   .custom-scrollbar::-webkit-scrollbar-thumb {
     background: #a1a1aa; /* zinc-400 - 순수한 밝은 회색 */
-    border: 2px solid #3f3f46; /* zinc-700 */
+    border: 2px solid #a1a1aa; /* zinc-700 */
   }
-  
+
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #d4d4d8; /* zinc-300 - 순수한 매우 밝은 회색 */
   }
@@ -936,7 +936,7 @@ kbd {
   .custom-scrollbar::-webkit-scrollbar {
     width: 12px; /* 터치에 더 적합한 크기 */
   }
-  
+
   .custom-scrollbar::-webkit-scrollbar-thumb {
     min-height: 40px; /* 터치에 충분한 높이 */
     border-radius: 6px;

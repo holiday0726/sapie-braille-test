@@ -432,7 +432,7 @@ export default function Home() {
         (isSidebarOpen || isSidebarHovered) ? 'md:pl-80' : ''
       }`}>
         {/* 메인 콘텐츠 영역 */}
-        <div className="flex-1 flex flex-col p-4 overflow-y-auto">
+        {/* <div className="flex-1 flex flex-col p-4 overflow-y-auto">
           {!hasStartedChat ? (
             <WelcomeScreen 
               micPermissionGranted={micPermissionGranted}
@@ -451,8 +451,47 @@ export default function Home() {
               selectedAgentId={selectedAgentId}
             />
           )}
-        </div>
-
+        </div> */}
+        {/* <div className="flex-1 flex flex-col p-4 overflow-y-auto custom-scrollbar">
+          {!hasStartedChat ? (
+            <WelcomeScreen 
+              micPermissionGranted={micPermissionGranted}
+              username={username}
+              selectedAgentId={selectedAgentId}
+              isAgentSelected={isAgentSelected}
+              onAgentSelect={selectAgent}
+              agents={agents}
+            />
+          ) : (
+            <ChatMessages
+              messages={messages}
+              isProcessing={isProcessing}
+              isStreaming={isStreaming}
+              messagesEndRef={messagesEndRef}
+              selectedAgentId={selectedAgentId}
+            />
+          )}
+        </div> */}
+        <div className="flex-1 flex flex-col p-4 overflow-y-auto custom-scrollbar">
+        {!hasStartedChat ? (
+          <WelcomeScreen 
+            micPermissionGranted={micPermissionGranted}
+            username={username}
+            selectedAgentId={selectedAgentId}
+            isAgentSelected={isAgentSelected}
+            onAgentSelect={selectAgent}
+            agents={agents}
+          />
+        ) : (
+          <ChatMessages
+            messages={messages}
+            isProcessing={isProcessing}
+            isStreaming={isStreaming}
+            messagesEndRef={messagesEndRef}
+            selectedAgentId={selectedAgentId}
+          />
+        )}
+      </div>
         {/* 하단 고정 입력창 */}
         <ChatInput
           ref={chatInputRef}
