@@ -665,9 +665,9 @@ async def process_request(request: Request):
         
         # 동적 agent 처리 로직 - agent_id를 받아서 문자열로 변환
         agent_id = request_data.get("agent_id", request_data.get("agent", 0))  # agent_id 우선, 후순위 agent
-        
-        # Agent ID 유효성 검증 (0: 일반, 1: 점역변환, 2: 뉴스, 3: 복지정보, 4: 날씨정보, 5: 문서변환환)
-        if not isinstance(agent_id, int) or agent_id < 0 or agent_id > 5:
+
+        # Agent ID 유효성 검증 (0: 일반, 1: 점역변환, 2: 뉴스, 3: 복지정보, 4: 날씨정보, 5: 문서변환, 6-8: 장애인 서비스)
+        if not isinstance(agent_id, int) or agent_id < 0 or agent_id > 8:
             logger.warning(f"Invalid agent_id received: {agent_id}, defaulting to 0")
             agent_id = 0
         
