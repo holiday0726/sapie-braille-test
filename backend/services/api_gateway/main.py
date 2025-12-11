@@ -699,24 +699,28 @@ async def process_request(request: Request):
 
 점자 변환이 완료되었습니다. 위의 점자를 스크린 리더로 읽어보시거나 점자 디스플레이로 확인하실 수 있습니다.'''
                     
-                    # 스트리밍으로 응답 전송 (message 이벤트)
-                    yield f"data: {json.dumps({'event': 'message', 'chunk': structured_response})}\n\n"
-                    
+                    # 스트리밍으로 응답 전송 (message 이벤트) - 문자별로 스트리밍
+                    for i, char in enumerate(structured_response):
+                        yield f"data: {json.dumps({'event': 'message', 'chunk': char}, ensure_ascii=False)}\n\n"
+                        # 약간의 지연을 주어 실제 스트리밍처럼 보이게 함 (선택사항)
+                        if i % 10 == 0:  # 10글자마다 약간의 지연
+                            await asyncio.sleep(0.01)
+
                     # 대화 ID 생성 (새로운 대화인 경우)
                     final_conversation_id = conversation_id if conversation_id else str(uuid.uuid4())
-                    
+
                     # message_end 이벤트 전송
                     metadata = {
                         'braille': braille_text,
                         'original_text': query_text,
                         'agent_type': '점역변환'
                     }
-                    
-                    yield f"data: {json.dumps({'event': 'message_end', 'conversation_id': final_conversation_id, 'metadata': metadata})}\n\n"
+
+                    yield f"data: {json.dumps({'event': 'message_end', 'conversation_id': final_conversation_id, 'metadata': metadata}, ensure_ascii=False)}\n\n"
                     
                 except Exception as e:
                     logger.error(f"Error in braille conversion: {str(e)}")
-                    yield f"data: {json.dumps({'event': 'error', 'message': f'점자 변환 중 오류가 발생했습니다: {str(e)}'})}\n\n"
+                    yield f"data: {json.dumps({'event': 'error', 'message': f'점자 변환 중 오류가 발생했습니다: {str(e)}'}, ensure_ascii=False)}\n\n"
             
             return StreamingResponse(
                 stream_braille_response(),
@@ -783,12 +787,13 @@ async def process_request(request: Request):
                             full_answer = "" # 스트리밍 시작 전 전체 답변 초기화
                             if response.status_code == 404 and "Conversation Not Exists" in error_text_decoded:
                                 logger.warning(f"Conversation {conversation_id} not found, retrying as new conversation")
-                                
+
                                 # 새 대화로 재시도
                                 retry_payload = dify_payload.copy()
                                 retry_payload["conversation_id"] = ""  # 빈 값으로 새 대화 생성
-                                
-                                logger.info(f"Retrying with new conversation: {retry_payload}")
+
+                                logger.info(f"🔄 Retrying with new conversation")
+                                logger.info(f"🔄 Retry payload keys: {list(retry_payload.keys())}")
                                 
                                 async with client.stream(
                                     "POST",
@@ -796,12 +801,14 @@ async def process_request(request: Request):
                                     headers=headers,
                                     json=retry_payload
                                 ) as retry_response:
+                                    logger.info(f"✅ Retry response status: {retry_response.status_code}")
                                     if retry_response.status_code != 200:
                                         retry_error = await retry_response.aread()
-                                        logger.error(f"Retry also failed: {retry_response.status_code}, {retry_error.decode()}")
-                                        yield f"data: {json.dumps({'event': 'error', 'message': f'대화 생성 실패: {retry_response.status_code}'})}\n\n"
+                                        logger.error(f"❌ Retry also failed: {retry_response.status_code}, {retry_error.decode()}")
+                                        yield f"data: {json.dumps({'event': 'error', 'message': f'대화 생성 실패: {retry_response.status_code}'}, ensure_ascii=False)}\n\n"
                                         return
-                                    
+
+                                    logger.info(f"✅ Retry succeeded, starting streaming processing")
                                     # 재시도 성공 시 스트리밍 처리
                                     async for line in retry_response.aiter_lines():
                                         line = line.strip()
@@ -818,8 +825,14 @@ async def process_request(request: Request):
                                                     logger.info(f"🟢 [RETRY] Received chunk from Dify: length={len(chunk) if chunk else 0}, content={repr(chunk[:100]) if chunk else 'None'}")
                                                     if chunk:
                                                         full_answer += chunk  # 전체 응답 저장
-                                                        logger.info(f"📤 [RETRY] Sending chunk to frontend: length={len(chunk)}")
-                                                        yield f"data: {json.dumps({'event': 'message', 'chunk': chunk})}\n\n"
+
+                                                        # 큰 청크를 작은 청크로 분할하여 스트리밍 효과 제공
+                                                        chunk_size = 10  # 10글자씩 전송
+                                                        for i in range(0, len(chunk), chunk_size):
+                                                            mini_chunk = chunk[i:i+chunk_size]
+                                                            logger.info(f"📤 [RETRY] Sending mini-chunk to frontend: length={len(mini_chunk)}")
+                                                            yield f"data: {json.dumps({'event': 'message', 'chunk': mini_chunk}, ensure_ascii=False)}\n\n"
+                                                            await asyncio.sleep(0.02)  # 20ms 지연으로 스트리밍 효과
                                                 
                                                 elif event_type == "message_end":
                                                     received_conversation_id = json_data.get("conversation_id", "")
@@ -849,13 +862,13 @@ async def process_request(request: Request):
                                                     }
                                                     
                                                     logger.info(f"Sending new conversation to frontend: {response_data}")
-                                                    yield f"data: {json.dumps(response_data)}\n\n"
+                                                    yield f"data: {json.dumps(response_data, ensure_ascii=False)}\n\n"
                                                     return
-                                                
+
                                                 elif event_type == "error":
                                                     error_msg = json_data.get("message", "알 수 없는 오류")
                                                     logger.error(f"Dify retry streaming error: {error_msg}")
-                                                    yield f"data: {json.dumps({'event': 'error', 'message': error_msg})}\n\n"
+                                                    yield f"data: {json.dumps({'event': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"
                                                     return
                                                     
                                             except json.JSONDecodeError as e:
@@ -864,7 +877,7 @@ async def process_request(request: Request):
                                 return
                             else:
                                 # 다른 종류의 에러
-                                yield f"data: {json.dumps({'event': 'error', 'message': f'Dify API 오류: {response.status_code}'})}\n\n"
+                                yield f"data: {json.dumps({'event': 'error', 'message': f'Dify API 오류: {response.status_code}'}, ensure_ascii=False)}\n\n"
                                 return
                         
                         full_answer = "" # 스트리밍 시작 전 전체 답변 초기화
@@ -888,8 +901,14 @@ async def process_request(request: Request):
                                         logger.info(f"🔵 Received chunk from Dify: length={len(chunk) if chunk else 0}, content={repr(chunk[:100]) if chunk else 'None'}")
                                         if chunk:
                                             full_answer += chunk # 전체 응답 저장
-                                            logger.info(f"📤 Sending chunk to frontend: length={len(chunk)}")
-                                            yield f"data: {json.dumps({'event': 'message', 'chunk': chunk})}\n\n"
+
+                                            # 큰 청크를 작은 청크로 분할하여 스트리밍 효과 제공
+                                            chunk_size = 10  # 10글자씩 전송
+                                            for i in range(0, len(chunk), chunk_size):
+                                                mini_chunk = chunk[i:i+chunk_size]
+                                                logger.info(f"📤 Sending mini-chunk to frontend: length={len(mini_chunk)}")
+                                                yield f"data: {json.dumps({'event': 'message', 'chunk': mini_chunk}, ensure_ascii=False)}\n\n"
+                                                await asyncio.sleep(0.02)  # 20ms 지연으로 스트리밍 효과
                                     
                                     elif event_type == "message_end":
                                         received_conversation_id = json_data.get("conversation_id", "")
@@ -930,13 +949,13 @@ async def process_request(request: Request):
                                         }
                                         
                                         logger.info(f"Sending to frontend: {response_data}")
-                                        yield f"data: {json.dumps(response_data)}\n\n"
+                                        yield f"data: {json.dumps(response_data, ensure_ascii=False)}\n\n"
                                         break
-                                    
+
                                     elif event_type == "error":
                                         error_msg = json_data.get("message", "알 수 없는 오류")
                                         logger.error(f"Dify streaming error: {error_msg}")
-                                        yield f"data: {json.dumps({'event': 'error', 'message': error_msg})}\n\n"
+                                        yield f"data: {json.dumps({'event': 'error', 'message': error_msg}, ensure_ascii=False)}\n\n"
                                         break
                                         
                                 except json.JSONDecodeError as e:
@@ -945,7 +964,7 @@ async def process_request(request: Request):
                                     
             except Exception as e:
                 logger.error(f"Error during streaming: {str(e)}")
-                yield f"data: {json.dumps({'event': 'error', 'message': f'스트리밍 중 오류 발생: {str(e)}'})}\n\n"
+                yield f"data: {json.dumps({'event': 'error', 'message': f'스트리밍 중 오류 발생: {str(e)}'}, ensure_ascii=False)}\n\n"
         
         return StreamingResponse(
             stream_dify_response(),
