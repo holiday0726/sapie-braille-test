@@ -1,10 +1,3 @@
-# Environment files
-.env
-.env.local
-.env.*.local
-backend/.env.*
-*.env
-
 # Python
 __pycache__/
 *.py[cod]
@@ -12,6 +5,7 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+.pytest_cache/
 
 # Virtual environment
 .venv/
@@ -29,14 +23,30 @@ env/
 Thumbs.db
 
 # Project specific
-output/
-temp/
-*.tmp 
-
-#Project output
+temp_files/
 temp_extract/
 temp_output/
+output/
 data/
-temp_files/
+*.tmp
 
-nul
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# Tests
+tests/
+test_*.py
+*_test.py
+
+# Node modules (if any)
+node_modules/
+
+# Environment files
+.env
+.env.*
+*.env

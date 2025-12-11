@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 from typing import Optional
 from PIL import Image
 import uuid
+import subprocess
 from nodes.base import BaseNode
 from state import ParserState, FileType
 import filetype
@@ -27,7 +28,8 @@ class InputNode(BaseNode):
         # 지원하는 확장자들
         self.image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'}
         self.pdf_extensions = {'.pdf'}
-        self.word_extensions = {'.docx','.doc'}
+        self.word_extensions = {'.docx', '.doc'}
+
 
     def _get_filename_from_url(self, url: str) -> str:
         """URL에서 파일명 추출"""
@@ -267,6 +269,7 @@ class InputNode(BaseNode):
                 return pdf_path
             except subprocess.CalledProcessError as e:
                 raise RuntimeError(f"Word → PDF 변환 실패: {e.stderr or e}") from e
+
     
     def _validate_image_file(self, file_path: str) -> bool:
         """이미지 파일 유효성 검사"""

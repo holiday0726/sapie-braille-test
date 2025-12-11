@@ -47,5 +47,5 @@ export const getApiUrl = (): string => {
   }
 
   // 3. 로컬 개발 환경
-  return 'http://localhost:8080';
+  return 'http://13.209.139.144:8080';
 };

@@ -813,8 +813,10 @@ async def process_request(request: Request):
                                                 
                                                 if event_type == "message":
                                                     chunk = json_data.get("answer", "")
+                                                    logger.info(f"🟢 [RETRY] Received chunk from Dify: length={len(chunk) if chunk else 0}, content={repr(chunk[:100]) if chunk else 'None'}")
                                                     if chunk:
                                                         full_answer += chunk  # 전체 응답 저장
+                                                        logger.info(f"📤 [RETRY] Sending chunk to frontend: length={len(chunk)}")
                                                         yield f"data: {json.dumps({'event': 'message', 'chunk': chunk})}\n\n"
                                                 
                                                 elif event_type == "message_end":
@@ -876,8 +878,10 @@ async def process_request(request: Request):
                                     
                                     if event_type == "message":
                                         chunk = json_data.get("answer", "")
+                                        logger.info(f"🔵 Received chunk from Dify: length={len(chunk) if chunk else 0}, content={repr(chunk[:100]) if chunk else 'None'}")
                                         if chunk:
                                             full_answer += chunk # 전체 응답 저장
+                                            logger.info(f"📤 Sending chunk to frontend: length={len(chunk)}")
                                             yield f"data: {json.dumps({'event': 'message', 'chunk': chunk})}\n\n"
                                     
                                     elif event_type == "message_end":

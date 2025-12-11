@@ -23,7 +23,7 @@ services:
       timeout: 10s
       retries: 3
 
-  # Parser Service - 포트 8001  
+  # Parser Service - 포트 8001
   parser-service:
     build:
       context: ./backend/services/parser_service

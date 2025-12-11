@@ -29,7 +29,11 @@
       "Read(/C:\\workspace\\sapie-braille\\frontend\\src\\app/**)",
       "Read(/C:\\workspace\\sapie-braille\\frontend\\src\\utils/**)",
       "Read(/C:\\workspace\\sapie-braille\\backend/**)",
-      "Read(/C:\\workspace\\sapie-braille\\backend\\services\\api_gateway/**)"
+      "Read(/C:\\workspace\\sapie-braille\\backend\\services\\api_gateway/**)",
+      "Bash(nul)",
+      "Bash(find backend/services/parser_service -name \"*.py\" -exec grep -l \"\\.\\./\\.\\.\" {} ;)",
+      "Bash(docker system df)",
+      "Bash(docker-compose build --no-cache --progress=plain parser-service)"
     ],
     "deny": [],
     "ask": []
