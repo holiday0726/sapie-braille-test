@@ -1,0 +1,11 @@
+{
+  "buildCommand": "cd frontend && npm run build",
+  "outputDirectory": "frontend/.next",
+  "framework": "nextjs",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "http://13.209.139.144:8080/:path*"
+    }
+  ]
+}
