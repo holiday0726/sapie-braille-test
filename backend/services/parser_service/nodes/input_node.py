@@ -288,6 +288,8 @@ class InputNode(BaseNode):
                 return header == b'%PDF'
         except Exception:
             return False
+
+    #test
     
     # def execute(self, state: ParserState) -> ParserState:
     #     """입력 처리 실행 - 단일 파일 전용"""
