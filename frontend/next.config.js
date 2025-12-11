@@ -38,7 +38,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*', // 브라우저가 '/api/auth/login' 같은 주소로 요청하면
-        destination: 'http://13.209.139.144/:path*', // Vercel이 'http://13.209.../auth/login'으로 토스합니다.
+        destination: 'http://13.209.139.144:8080/:path*', // Vercel이 'http://13.209.../auth/login'으로 토스합니다.
       },
     ];
   },

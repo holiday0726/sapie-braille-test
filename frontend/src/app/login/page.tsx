@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { LoginScreen } from '@/components/LoginScreen'
 import { getApiUrl } from '@/utils/env'
+import { safeLocalStorage, safeSessionStorage } from '@/utils/storage'
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
@@ -32,10 +33,10 @@ export default function LoginPage() {
 
       if (response.ok) {
         // 로그인 성공
-        localStorage.setItem('isLoggedIn', 'true')
-        localStorage.setItem('username', data.username)
-        localStorage.setItem('accessToken', data.access_token)
-        sessionStorage.setItem('justLoggedIn', 'true'); // sessionStorage에 로그인 상태 기록
+        safeLocalStorage.setItem('isLoggedIn', 'true')
+        safeLocalStorage.setItem('username', data.username)
+        safeLocalStorage.setItem('accessToken', data.access_token)
+        safeSessionStorage.setItem('justLoggedIn', 'true'); // sessionStorage에 로그인 상태 기록
         
         // 메인 페이지에서 통합 안내를 하므로 여기서는 알림을 제거합니다.
         

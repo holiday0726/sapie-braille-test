@@ -15,6 +15,7 @@ import { useAgentSelection } from '@/hooks/useAgentSelection'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { getApiUrl } from '@/utils/env'
 import { focusElement, announceToScreenReader } from '@/utils/accessibilityUtils'
+import { safeLocalStorage, safeSessionStorage } from '@/utils/storage'
 
 const WelcomeScreen = dynamic(() => import('@/components/WelcomeScreen').then(mod => mod.WelcomeScreen), { 
   ssr: false,
@@ -44,8 +45,8 @@ export default function Home() {
   // 로그인 상태 확인 및 토큰 검증 (병렬 처리 최적화)
   useEffect(() => {
     const checkAuthStatus = async () => {
-      const token = localStorage.getItem('accessToken')
-      const storedUsername = localStorage.getItem('username') || ''
+      const token = safeLocalStorage.getItem('accessToken')
+      const storedUsername = safeLocalStorage.getItem('username') || ''
       
       if (!token) {
         router.push('/login')
@@ -77,9 +78,9 @@ export default function Home() {
           setUsername(data.username || storedUsername)
         } else {
           // 토큰이 유효하지 않음 - 로그아웃 처리
-          localStorage.removeItem('accessToken')
-          localStorage.removeItem('isLoggedIn')
-          localStorage.removeItem('username')
+          safeLocalStorage.removeItem('accessToken')
+          safeLocalStorage.removeItem('isLoggedIn')
+          safeLocalStorage.removeItem('username')
           router.push('/login')
           return
         }
@@ -99,9 +100,9 @@ export default function Home() {
 
   // 로그아웃 핸들러
   const handleLogout = () => {
-    localStorage.removeItem('isLoggedIn')
-    localStorage.removeItem('username')
-    localStorage.removeItem('accessToken')
+    safeLocalStorage.removeItem('isLoggedIn')
+    safeLocalStorage.removeItem('username')
+    safeLocalStorage.removeItem('accessToken')
     
     // 라이브 영역에 로그아웃 안내
     const announceElement = document.getElementById('live-announcements')
@@ -233,7 +234,7 @@ export default function Home() {
 
   // 로그인 직후 환영 메시지 안내
   useEffect(() => {
-    const justLoggedIn = sessionStorage.getItem('justLoggedIn');
+    const justLoggedIn = safeSessionStorage.getItem('justLoggedIn');
     if (justLoggedIn) {
       const welcomeMessage = `로그인에 성공했습니다. 안녕하세요 ${username}, 음성으로 말씀하시거나 텍스트로 입력하세요. 
       스페이스바를 두 번 누르면 음성 녹음이 시작되고 종료됩니다. 
@@ -241,7 +242,7 @@ export default function Home() {
       컨트롤 더하기 r을 누르면 텍스트 음성을 재생합니다.`
       
       announceToScreenReader(welcomeMessage, 'assertive', 500);
-      sessionStorage.removeItem('justLoggedIn');
+      safeSessionStorage.removeItem('justLoggedIn');
     }
   }, [username]); // username이 설정된 후에 실행
 

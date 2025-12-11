@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { ChatSession, Message } from '@/types';
 import { generateChatTitle } from '@/utils/chatUtils';
 import { getApiUrl } from '@/utils/env';
+import { safeLocalStorage } from '@/utils/storage';
 
 export const useChatSessions = () => {
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
@@ -35,7 +36,7 @@ export const useChatSessions = () => {
   }, []);
 
   const loadChatSessionsFromLocalStorage = useCallback(() => {
-    const savedSessions = localStorage.getItem('chatSessions');
+    const savedSessions = safeLocalStorage.getItem('chatSessions');
     if (savedSessions) {
       const sessions = JSON.parse(savedSessions);
       const parsedSessions = sessions.map((session: any) => ({
@@ -58,7 +59,7 @@ export const useChatSessions = () => {
   }, [loadChatSessionsFromServer]);
 
   const saveChatSessions = useCallback((sessions: ChatSession[]) => {
-    localStorage.setItem('chatSessions', JSON.stringify(sessions));
+    safeLocalStorage.setItem('chatSessions', JSON.stringify(sessions));
     setChatSessions(sessions);
   }, []);
 
