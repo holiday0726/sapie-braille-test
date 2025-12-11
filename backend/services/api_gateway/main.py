@@ -766,12 +766,14 @@ async def process_request(request: Request):
                 }
                 
                 async with httpx.AsyncClient(timeout=60.0) as client:
+                    logger.info(f"🚀 Sending request to Dify with agent_id={agent_id}")
                     async with client.stream(
                         "POST",
                         "http://agent.sapie.ai/v1/chat-messages",
                         headers=headers,
                         json=dify_payload
                     ) as response:
+                        logger.info(f"📥 Dify response status: {response.status_code}")
                         if response.status_code != 200:
                             error_text = await response.aread()
                             error_text_decoded = error_text.decode()
@@ -866,16 +868,21 @@ async def process_request(request: Request):
                                 return
                         
                         full_answer = "" # 스트리밍 시작 전 전체 답변 초기화
+                        line_count = 0
                         async for line in response.aiter_lines():
                             line = line.strip()
                             if not line:
                                 continue
-                                
+
+                            line_count += 1
+                            logger.info(f"📨 [Line {line_count}] Raw: {line[:100]}")
+
                             if line.startswith("data: "):
                                 try:
                                     json_data = json.loads(line[6:])
                                     event_type = json_data.get("event", "")
-                                    
+                                    logger.info(f"🔹 Event type: {event_type}, agent_id={agent_id}")
+
                                     if event_type == "message":
                                         chunk = json_data.get("answer", "")
                                         logger.info(f"🔵 Received chunk from Dify: length={len(chunk) if chunk else 0}, content={repr(chunk[:100]) if chunk else 'None'}")
